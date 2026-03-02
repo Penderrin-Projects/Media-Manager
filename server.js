@@ -95,6 +95,8 @@ const store = {
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+app.use('/admin', express.static(path.join(__dirname, 'public')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // Allow self-signed certs (common on seedbox webUIs)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';

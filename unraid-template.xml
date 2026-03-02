@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>media-manager</Name>
+  <Repository>ghcr.io/pennderin/media-manager:latest</Repository>
+  <Registry>https://github.com/Pennderin/Media-Manager/pkgs/container/media-manager</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Pennderin/Media-Manager</Support>
+  <Project>https://github.com/Pennderin/Media-Manager</Project>
+  <Overview>Headless media pipeline server. Automates the full flow: search Prowlarr, download via qBittorrent, SFTP from seedbox, rename with TMDB metadata, and organize into Plex libraries. REST API + WebSocket for real-time updates. Settings UI at http://[IP]:9876/admin</Overview>
+  <Category>MediaServer:Other</Category>
+  <WebUI>http://[IP]:[PORT:9876]/admin</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/Pennderin/Media-Manager/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/Pennderin/Media-Manager/main/public/icon.svg</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Web UI Port" Target="9876" Default="9876" Mode="tcp" Description="Port for API and Settings UI" Type="Port" Display="always" Required="true" Mask="false">9876</Config>
+  <Config Name="Config Directory" Target="/config" Default="/mnt/user/appdata/media-manager/config" Mode="rw" Description="Persistent config storage" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/media-manager/config</Config>
+  <Config Name="Staging Directory" Target="/staging" Default="/mnt/user/Plex/Z Staging" Mode="rw" Description="Temporary workspace for downloads before renaming" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/Z Staging</Config>
+  <Config Name="Movies Library" Target="/media/movies" Default="/mnt/user/Plex/Movies" Mode="rw" Description="Plex Movies library path" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/Movies</Config>
+  <Config Name="TV Shows Library" Target="/media/tv" Default="/mnt/user/Plex/TV Shows" Mode="rw" Description="Plex TV Shows library path" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/TV Shows</Config>
+  <Config Name="Kids Movies Library" Target="/media/kids-movies" Default="/mnt/user/Plex/Kids Movies" Mode="rw" Description="Plex Kids Movies library path" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/Kids Movies</Config>
+  <Config Name="Asian Movies Library" Target="/media/asian-movies" Default="/mnt/user/Plex/Asian Movies" Mode="rw" Description="Plex Asian Movies library path" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/Asian Movies</Config>
+  <Config Name="Asian Shows Library" Target="/media/asian-shows" Default="/mnt/user/Plex/Asian Shows" Mode="rw" Description="Plex Asian Shows library path" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/Asian Shows</Config>
+  <Config Name="Anime Movies Library" Target="/media/anime-movies" Default="/mnt/user/Plex/Anime Movies" Mode="rw" Description="Plex Anime Movies library path" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/Anime Movies</Config>
+  <Config Name="Anime Shows Library" Target="/media/anime-shows" Default="/mnt/user/Plex/Anime Shows" Mode="rw" Description="Plex Anime Shows library path" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Plex/Anime Shows</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="Timezone" Target="TZ" Default="America/New_York" Mode="" Description="Container timezone" Type="Variable" Display="advanced" Required="false" Mask="false">America/New_York</Config>
+  <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="Logging level: error, warn, info, debug" Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
+</Container>

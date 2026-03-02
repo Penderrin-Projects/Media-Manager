@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Manager — Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0d1117; --bg-card: #161b22; --bg-input: #0d1117;
+      --text: #e6edf3; --text-dim: #7d8590; --text-muted: #484f58;
+      --accent: #58a6ff; --accent-hover: #79c0ff;
+      --success: #3fb950; --danger: #f85149; --warning: #d29922;
+      --border: #30363d; --radius: 8px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      max-width: 720px; margin: 0 auto; padding: 24px 20px 60px;
+    }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+    .section { margin-bottom: 28px; }
+    .section-title {
+      font-size: 14px; font-weight: 600; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
+    .field input, .field select {
+      width: 100%; padding: 10px 12px; background: var(--bg-input);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text); font-size: 14px; font-family: inherit;
+      outline: none; transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .field input[type="password"] { font-family: monospace; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field-hint { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .btn {
+      padding: 10px 20px; border: none; border-radius: var(--radius);
+      font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); }
+    .btn-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+    .status-grid {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;
+    }
+    .status-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 20px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      font-size: 12px; font-weight: 500;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .dot-err { background: var(--danger); }
+    .dot-pending { background: var(--text-muted); }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      padding: 12px 24px; border-radius: var(--radius); font-size: 13px;
+      font-weight: 500; z-index: 999; animation: slideUp 0.3s ease;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .toast-success { background: #1a3a2a; color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
+    .toast-error { background: #3a1a1a; color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+    @keyframes slideUp { from { opacity: 0; transform: translateX(-50%) translateY(10px); } }
+    .logo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+    .logo-row svg { width: 32px; height: 32px; color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<div class="logo-row">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="12" cy="12" r="3"/><path d="m16 2-4 4-4-4"/></svg>
+  <h1>Media Manager</h1>
+</div>
+<div class="subtitle">Server settings — changes are saved to config.json on the NAS</div>
+
+<div class="status-grid" id="statusGrid"></div>
+
+<div class="section">
+  <div class="section-title">qBittorrent (Seedbox)</div>
+  <div class="field"><label>Web UI URL</label><input id="qbitUrl" placeholder="https://your-seedbox:8080"></div>
+  <div class="field-row">
+    <div class="field"><label>Username</label><input id="qbitUsername"></div>
+    <div class="field"><label>Password</label><input id="qbitPassword" type="password"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="testService('qbit')">Test Connection</button>
+    <span id="result-qbit"></span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">SFTP (Seedbox File Transfer)</div>
+  <div class="field-row">
+    <div class="field"><label>Host</label><input id="sftpHost" placeholder="hostname or IP"></div>
+    <div class="field"><label>Port</label><input id="sftpPort" type="number" value="22" style="width:80px"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Username</label><input id="sftpUsername"></div>
+    <div class="field"><label>Password</label><input id="sftpPassword" type="password"></div>
+  </div>
+  <div class="field"><label>Remote Download Path</label><input id="sftpRemotePath" placeholder="/home/user/downloads"></div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="testService('sftp')">Test Connection</button>
+    <span id="result-sftp"></span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Prowlarr (Indexer Search)</div>
+  <div class="field"><label>URL</label><input id="prowlarrUrl" placeholder="http://192.168.x.x:9696"></div>
+  <div class="field"><label>API Key</label><input id="prowlarrApiKey" placeholder="Found in Prowlarr → Settings → General"></div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="testService('prowlarr')">Test Connection</button>
+    <span id="result-prowlarr"></span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">TMDB (Metadata &amp; Renaming)</div>
+  <div class="field"><label>API Key</label><input id="tmdbApiKey" placeholder="Free at themoviedb.org → Settings → API"></div>
+  <div class="field-hint">Required for file renaming and poster lookups. Get a free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org</a></div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="testService('tmdb')">Test Connection</button>
+    <span id="result-tmdb"></span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Media Library Paths</div>
+  <div class="field-hint" style="margin-bottom:12px">These are container-internal paths. They map to your NAS folders via Docker volume mounts.</div>
+  <div class="field"><label>Staging (temp workspace)</label><input id="pathStaging" value="/staging"></div>
+  <div class="field-row">
+    <div class="field"><label>Movies</label><input id="pathMovies" value="/media/movies"></div>
+    <div class="field"><label>TV Shows</label><input id="pathTV" value="/media/tv"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Kids Movies</label><input id="pathKidsMovies" value="/media/kids-movies"></div>
+    <div class="field"><label>Asian Movies</label><input id="pathAsianMovies" value="/media/asian-movies"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Asian Shows</label><input id="pathAsianShows" value="/media/asian-shows"></div>
+    <div class="field"><label>Anime Movies</label><input id="pathAnimeMovies" value="/media/anime-movies"></div>
+  </div>
+  <div class="field"><label>Anime Shows</label><input id="pathAnimeShows" value="/media/anime-shows"></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Server</div>
+  <div class="field-row">
+    <div class="field"><label>Port</label><input id="serverPort" type="number" value="9876"></div>
+    <div class="field"><label>API Key (optional)</label><input id="serverApiKey" placeholder="Leave blank for open access"></div>
+  </div>
+</div>
+
+<div class="btn-row" style="margin-top:24px">
+  <button class="btn btn-primary" onclick="saveAll()">💾 Save All Settings</button>
+  <button class="btn btn-secondary" onclick="testAll()">🔍 Test All Connections</button>
+</div>
+
+<script>
+const fieldMap = {
+  'seedbox.qbitUrl': 'qbitUrl',
+  'seedbox.qbitUsername': 'qbitUsername',
+  'seedbox.qbitPassword': 'qbitPassword',
+  'seedbox.sftpHost': 'sftpHost',
+  'seedbox.sftpPort': 'sftpPort',
+  'seedbox.sftpUsername': 'sftpUsername',
+  'seedbox.sftpPassword': 'sftpPassword',
+  'seedbox.sftpRemotePath': 'sftpRemotePath',
+  'prowlarr.url': 'prowlarrUrl',
+  'prowlarr.apiKey': 'prowlarrApiKey',
+  'tmdb.apiKey': 'tmdbApiKey',
+  'paths.staging': 'pathStaging',
+  'paths.nasMovies': 'pathMovies',
+  'paths.nasTVShows': 'pathTV',
+  'paths.nasKidsMovies': 'pathKidsMovies',
+  'paths.nasAsianMovies': 'pathAsianMovies',
+  'paths.nasAsianShows': 'pathAsianShows',
+  'paths.nasAnimeMovies': 'pathAnimeMovies',
+  'paths.nasAnimeShows': 'pathAnimeShows',
+  'server.port': 'serverPort',
+  'server.apiKey': 'serverApiKey',
+};
+
+function getNestedValue(obj, path) {
+  return path.split('.').reduce((o, k) => o && o[k], obj);
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch('/api/settings/raw');
+    const cfg = await r.json();
+    for (const [cfgPath, elId] of Object.entries(fieldMap)) {
+      const el = document.getElementById(elId);
+      const val = getNestedValue(cfg, cfgPath);
+      if (el && val !== undefined && val !== null) el.value = val;
+    }
+  } catch (e) {
+    showToast('Failed to load settings: ' + e.message, 'error');
+  }
+}
+
+async function saveAll() {
+  try {
+    const updates = {};
+    for (const [cfgPath, elId] of Object.entries(fieldMap)) {
+      const el = document.getElementById(elId);
+      if (!el) continue;
+      let val = el.value;
+      if (el.type === 'number') val = parseInt(val) || 0;
+      updates[cfgPath] = val;
+    }
+    const r = await fetch('/api/settings/bulk', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    const data = await r.json();
+    if (data.success) {
+      showToast('Settings saved!', 'success');
+      testAll();
+    } else {
+      showToast('Save failed: ' + (data.error || 'unknown'), 'error');
+    }
+  } catch (e) {
+    showToast('Save failed: ' + e.message, 'error');
+  }
+}
+
+async function testService(name) {
+  const el = document.getElementById('result-' + name);
+  if (el) el.innerHTML = '<span style="color:var(--text-muted)">Testing...</span>';
+  try {
+    const r = await fetch('/api/test/' + name);
+    const data = await r.json();
+    if (data.success) {
+      if (el) el.innerHTML = `<span style="color:var(--success)">✓ Connected${data.version ? ' — ' + data.version : ''}</span>`;
+      updateChip(name, true);
+    } else {
+      if (el) el.innerHTML = `<span style="color:var(--danger)">✗ ${data.error || 'Failed'}</span>`;
+      updateChip(name, false);
+    }
+  } catch (e) {
+    if (el) el.innerHTML = `<span style="color:var(--danger)">✗ ${e.message}</span>`;
+    updateChip(name, false);
+  }
+}
+
+async function testAll() {
+  for (const svc of ['qbit', 'sftp', 'prowlarr', 'tmdb']) {
+    testService(svc);
+  }
+}
+
+function updateChip(name, ok) {
+  const chip = document.getElementById('chip-' + name);
+  if (!chip) return;
+  const dot = chip.querySelector('.dot');
+  if (dot) dot.className = 'dot ' + (ok ? 'dot-ok' : 'dot-err');
+}
+
+function buildStatusGrid() {
+  const grid = document.getElementById('statusGrid');
+  const services = [
+    { id: 'qbit', label: 'Seedbox' },
+    { id: 'sftp', label: 'SFTP' },
+    { id: 'prowlarr', label: 'Prowlarr' },
+    { id: 'tmdb', label: 'TMDB' },
+  ];
+  grid.innerHTML = services.map(s =>
+    `<div class="status-chip" id="chip-${s.id}"><span class="dot dot-pending"></span>${s.label}</div>`
+  ).join('');
+}
+
+function showToast(msg, type) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+buildStatusGrid();
+loadSettings();
+setTimeout(testAll, 500);
+</script>
+</body>
+</html>

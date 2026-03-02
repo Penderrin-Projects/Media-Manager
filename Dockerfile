@@ -13,6 +13,7 @@ RUN npm install --production
 # Copy application
 COPY server.js ./
 COPY src/ ./src/
+COPY public/ ./public/
 
 # Default paths
 ENV CONFIG_DIR=/config
