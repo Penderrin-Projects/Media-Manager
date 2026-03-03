@@ -136,14 +136,24 @@ function parse1337xTable(html) {
 }
 
 async function scrape1337xMagnet(infoPath) {
-  try {
-    const html = await fetchWithFallback(infoPath);
-    // Extract magnet link
-    const magnetMatch = html.match(/href="(magnet:\?[^"]+)"/i);
-    return magnetMatch ? magnetMatch[1] : null;
-  } catch {
-    return null;
+  for (const base of LEET_BASES) {
+    try {
+      const url = `${base}${infoPath}`;
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        redirect: 'follow',
+      });
+      if (!res.ok) continue;
+      const html = await res.text();
+      const magnetMatch = html.match(/href="(magnet:\?[^"]+)"/i);
+      if (magnetMatch) return magnetMatch[1];
+    } catch {}
   }
+  return null;
 }
 
 async function get1337xPopular(type, period) {
@@ -228,11 +238,22 @@ function parseNyaaTable(html) {
       const sizeStr = tds.find(t => /^\d+(\.\d+)?\s*(GiB|MiB|KiB|TiB|GB|MB|KB|TB)$/i.test(t)) || '';
       const size = parseNyaaSize(sizeStr);
 
-      // Seeders/Leechers — green and red styled tds
+      // Seeders/Leechers — try styled tds first, then fall back to positional
       const seedMatch = row.match(/class="text-success[^"]*"[^>]*>(\d+)<\/td>/i);
       const leechMatch = row.match(/class="text-danger[^"]*"[^>]*>(\d+)<\/td>/i);
-      const seeders = seedMatch ? parseInt(seedMatch[1]) : 0;
-      const leechers = leechMatch ? parseInt(leechMatch[1]) : 0;
+      let seeders = seedMatch ? parseInt(seedMatch[1]) : 0;
+      let leechers = leechMatch ? parseInt(leechMatch[1]) : 0;
+
+      // Fallback: Nyaa columns are Category, Name, Links, Size, Date, Seeders, Leechers, Downloads
+      // Get all numeric-only text-center tds after the date td
+      if (seeders === 0 && leechers === 0) {
+        const numericTds = [...row.matchAll(/<td[^>]*class="text-center"[^>]*>(\d+)<\/td>/gi)].map(m => parseInt(m[1]));
+        // The pattern is: seeders, leechers, downloads (3 consecutive numbers)
+        if (numericTds.length >= 2) {
+          seeders = numericTds[0];
+          leechers = numericTds[1];
+        }
+      }
 
       // Date
       const dateMatch = row.match(/data-timestamp="(\d+)"/i);
@@ -312,6 +333,80 @@ async function getNyaaPopular(period) {
 
 // ========== End Nyaa Scraper ==========
 
+// ========== Language Filter for Auto-Grab ==========
+
+const FOREIGN_MARKERS = [
+  /\bLektor\s*(PL|CZ|HU)\b/i,
+  /\bDubbing\s*(PL|CZ|HU)\b/i,
+  /\bNapisy\s*PL\b/i,
+  /\bTRUEFRENCH\b/i,
+  /\bFRENCH\b/i,
+  /\bVFF\b/i,
+  /\bVFQ\b/i,
+  /\bLATINO\b/i,
+  /\bSPANISH\b/i,
+  /\bGerman\s*DL\b/i,
+  /\biTALiAN\b/i,
+  /\bRUS(?:\s|$|\b)/i,
+  /\bRUSSIAN\b/i,
+  /\bHINDI\b/i,
+  /\bTAMiL\b/i,
+  /\bTELUGU\b/i,
+  /\bKOREAN\b/i,
+  /\bCHINESE\b/i,
+  /\bJAPANESE\b/i,
+  /\bARABIC\b/i,
+  /\bTURKISH\b/i,
+  /\bPOLISH\b/i,
+  /\bCZECH\b/i,
+  /\bHUNGARIAN\b/i,
+  /\bPORTUGUESE\b/i,
+  /\bBRAZILIAN\b/i,
+  /\bDUTCH\b/i,
+  /\bSWEDISH\b/i,
+  /\bDANISH\b/i,
+  /\bNORWEGIAN\b/i,
+  /\bFINNISH\b/i,
+  /\bGREEK\b/i,
+  /\bHC\b/,
+];
+
+const FOREIGN_TITLE_PATTERNS = [
+  /^Slepa\s/i, /^La\s\w+\s\//i, /^Le\s\w+\s\//i, /^El\s\w+\s\//i,
+  /^Der\s\w+\s\//i, /^Das\s\w+\s\//i, /^Die\s\w+\s\//i,
+];
+
+const ENGLISH_MARKERS = [
+  /\bENG(?:lish)?\b/i, /\bEnG\b/, /\bDUAL\b/i,
+];
+
+function isLikelyEnglish(title) {
+  const t = title || '';
+  for (const marker of FOREIGN_MARKERS) {
+    if (marker.test(t)) {
+      if (ENGLISH_MARKERS.some(em => em.test(t))) continue;
+      return false;
+    }
+  }
+  for (const pattern of FOREIGN_TITLE_PATTERNS) {
+    if (pattern.test(t)) {
+      if (!ENGLISH_MARKERS.some(em => em.test(t))) return false;
+    }
+  }
+  return true;
+}
+
+function languageScore(title) {
+  const t = title || '';
+  if (!isLikelyEnglish(t)) return -1;
+  let score = 0;
+  if (/\bENG(?:lish)?\b/i.test(t) || /\bEnG\b/.test(t)) score += 2;
+  if (/\bDUAL\b/i.test(t)) score += 1;
+  return score;
+}
+
+// ========== End Language Filter ==========
+
 function setupProwlarrRoutes(app, store, auth) {
   app.get('/api/prowlarr/test', auth, async (req, res) => {
     try {
@@ -372,7 +467,16 @@ function setupProwlarrRoutes(app, store, auth) {
         }
       }
       allResults.sort((a, b) => b.seeders - a.seeders);
-      res.json({ success: true, results: allResults, indexerStatus });
+      // Filter out non-English results for auto-grab
+      const englishResults = allResults.filter(r => isLikelyEnglish(r.title));
+      const filteredResults = englishResults.length > 0 ? englishResults : allResults;
+      // Sort: English-marked first, then by seeders
+      filteredResults.sort((a, b) => {
+        const langDiff = languageScore(b.title) - languageScore(a.title);
+        if (langDiff !== 0) return langDiff;
+        return b.seeders - a.seeders;
+      });
+      res.json({ success: true, results: filteredResults, indexerStatus });
     } catch (e) { res.json({ success: false, error: e.message }); }
   });
 
@@ -451,6 +555,63 @@ function setupProwlarrRoutes(app, store, auth) {
       results.sort((a, b) => b.seeders - a.seeders);
       res.json({ success: true, results: results.slice(0, 100) });
     } catch (e) { res.json({ success: false, error: e.message }); }
+  });
+
+  // Resolve magnet link on-demand (for 1337x and other indexers that don't include it in browse)
+  app.post('/api/prowlarr/resolve-magnet', auth, async (req, res) => {
+    try {
+      const { infoUrl, guid, title } = req.body;
+      if (!infoUrl && !guid && !title) return res.status(400).json({ error: 'infoUrl, guid, or title required' });
+
+      const cfg = store.get('prowlarr') || {};
+      const base = cfg.url ? cfg.url.replace(/\/$/, '') : '';
+      const headers = cfg.apiKey ? { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' } : {};
+
+      // Method 1: Search Prowlarr by title and match by guid or closest title
+      if (base && cfg.apiKey && (title || guid)) {
+        try {
+          // Extract a clean search query from the title
+          const searchQuery = (title || '').replace(/[\.\-\_\(\)]/g, ' ').replace(/\b(1080p|720p|2160p|x264|x265|HEVC|WEB-DL|WEBRip|BluRay|BRRip|HDRip|NeoNoir|BONE|DDP|AAC|AC3|FLAC|5\.1|10bit|10Bit|REMUX)\b/gi, '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 5).join(' ');
+          
+          if (searchQuery.length >= 3) {
+            const searchUrl = `${base}/api/v1/search?query=${encodeURIComponent(searchQuery)}&type=search&limit=50`;
+            const sRes = await fetch(searchUrl, { headers });
+            if (sRes.ok) {
+              const results = await sRes.json();
+              // Try exact guid match first
+              let match = guid ? results.find(r => r.guid === guid) : null;
+              // Then try title match
+              if (!match && title) {
+                match = results.find(r => r.title === title);
+              }
+              // Then try fuzzy title match
+              if (!match && title) {
+                const lowerTitle = title.toLowerCase();
+                match = results.find(r => r.title && r.title.toLowerCase() === lowerTitle);
+              }
+              if (match) {
+                const dlUrl = match.downloadUrl || match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
+                if (dlUrl) return res.json({ success: true, downloadUrl: dlUrl });
+              }
+            }
+          }
+        } catch (e) {
+          console.log('[resolve-magnet] Prowlarr search failed:', e.message);
+        }
+      }
+
+      // Method 2: Try 1337x direct scrape (may fail due to Cloudflare)
+      const path = infoUrl || guid || '';
+      if (path.includes('1337x') || path.startsWith('/torrent/')) {
+        const infoPath = path.startsWith('http') ? new URL(path).pathname : path;
+        const magnet = await scrape1337xMagnet(infoPath);
+        if (magnet) return res.json({ success: true, downloadUrl: magnet });
+      }
+
+      res.status(404).json({ error: 'Could not resolve download URL' });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
   });
 }
 
