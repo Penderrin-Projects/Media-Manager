@@ -461,6 +461,7 @@ function setupProwlarrRoutes(app, store, auth) {
             seeders: r.seeders || 0, leechers: r.leechers || 0,
             indexer: r.indexer, downloadUrl: dlUrl, infoUrl: r.infoUrl,
             publishDate: r.publishDate,
+            imdbId: r.imdbId || null,
             categories: (r.categories || []).map(c => c.id),
             indexerFlags: r.indexerFlags || []
           });
@@ -543,6 +544,7 @@ function setupProwlarrRoutes(app, store, auth) {
         if (!dlUrl && r.guid && r.guid.startsWith('magnet:')) dlUrl = r.guid;
         return { guid: r.guid, title: r.title, size: r.size, seeders: r.seeders || 0, leechers: r.leechers || 0,
           indexer: r.indexer, downloadUrl: dlUrl, infoUrl: r.infoUrl, publishDate: r.publishDate,
+          imdbId: r.imdbId || null,
           categories: (r.categories || []).map(c => c.id), indexerFlags: r.indexerFlags || [] };
       });
 
