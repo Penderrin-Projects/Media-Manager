@@ -428,7 +428,7 @@ function setupProwlarrRoutes(app, store, auth) {
 
   app.post('/api/prowlarr/search', auth, async (req, res) => {
     try {
-      const { query, categories, indexerIds } = req.body;
+      const { query, categories, indexerIds, primaryIndexer } = req.body;
       const cfg = store.get('prowlarr') || {};
       if (!cfg.url || !cfg.apiKey) throw new Error('Prowlarr not configured');
       const base = cfg.url.replace(/\/$/, '');
@@ -440,9 +440,12 @@ function setupProwlarrRoutes(app, store, auth) {
       const torrentIndexers = allIndexers.filter(i => i.enable && i.protocol === 'torrent');
       if (!torrentIndexers.length) throw new Error('No enabled torrent indexers found');
       
-      // Search 1337x first — its proxy URLs work reliably
-      const leet = torrentIndexers.filter(i => /1337/i.test(i.name));
-      const others = torrentIndexers.filter(i => !/1337/i.test(i.name) && !/nyaa/i.test(i.name));
+      // Determine primary/fallback indexers based on setting (default: 1337x first)
+      const primary = (primaryIndexer || cfg.primaryIndexer || '1337x').toLowerCase();
+      const isPrimaryLeet = primary.includes('1337');
+      const primaryGroup = torrentIndexers.filter(i => isPrimaryLeet ? /1337/i.test(i.name) : !/1337/i.test(i.name) && !/nyaa/i.test(i.name));
+      const fallbackGroup = torrentIndexers.filter(i => isPrimaryLeet ? (!/1337/i.test(i.name) && !/nyaa/i.test(i.name)) : /1337/i.test(i.name));
+      console.log(`[search] Primary: ${primary} (${primaryGroup.map(i => i.name).join(', ')}), Fallback: ${fallbackGroup.map(i => i.name).join(', ')}`);
 
       const searchIndexers = async (indexers) => {
         const searches = indexers.map(async (idx) => {
@@ -457,14 +460,14 @@ function setupProwlarrRoutes(app, store, auth) {
         return Promise.all(searches);
       };
 
-      // 1337x first
-      let outcomes = await searchIndexers(leet);
+      // Primary indexer first
+      let outcomes = await searchIndexers(primaryGroup);
       let totalResults = outcomes.reduce((sum, o) => sum + o.results.length, 0);
       
-      // Fall back to ext.to/others only if 1337x returned nothing
-      if (totalResults === 0 && others.length > 0) {
-        console.log(`[search] 1337x empty, falling back to: ${others.map(i => i.name).join(', ')}`);
-        const fallbackOutcomes = await searchIndexers(others);
+      // Fall back to other indexers only if primary returned nothing
+      if (totalResults === 0 && fallbackGroup.length > 0) {
+        console.log(`[search] Primary empty, falling back to: ${fallbackGroup.map(i => i.name).join(', ')}`);
+        const fallbackOutcomes = await searchIndexers(fallbackGroup);
         outcomes = outcomes.concat(fallbackOutcomes);
       }
 
