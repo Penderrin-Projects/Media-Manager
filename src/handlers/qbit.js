@@ -58,64 +58,40 @@ async function addAndDetect(store, url, searchName) {
 
       if (torrentResp) {
         if (!torrentResp.ok) {
-          // On 410 (expired link), re-resolve a fresh magnet via resolve-magnet endpoint
+          // On 410 (expired link), re-search: try 1337x first, fall back to ext.to
           if (torrentResp.status === 410 && searchName) {
-            console.log(`[addAndDetect] 410 expired link, re-resolving magnet for: ${searchName}`);
+            console.log(`[addAndDetect] 410 expired link, re-searching for: ${searchName}`);
             try {
               const prowlarrCfg = store.get('prowlarr') || {};
               const prowlarrBase = (prowlarrCfg.url || '').replace(/\/$/, '');
               const searchHeaders = { 'X-Api-Key': prowlarrCfg.apiKey, 'Accept': 'application/json' };
-
-              // Search Prowlarr with timeout, prefer 1337x magnet scrape
               const searchQuery = searchName.replace(/[\.\-\_]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ');
-              const searchUrl = `${prowlarrBase}/api/v1/search?query=${encodeURIComponent(searchQuery)}&type=search&limit=20`;
-              const searchResp = await fetch(searchUrl, { headers: searchHeaders, signal: AbortSignal.timeout(15000) });
 
-              if (searchResp.ok) {
-                const results = await searchResp.json();
-                const sorted = [...results].sort((a, b) =>
-                  ((b.indexer||'').toLowerCase().includes('1337x') ? 1 : 0) -
-                  ((a.indexer||'').toLowerCase().includes('1337x') ? 1 : 0)
-                );
+              const tryIndexer = async (indexerId) => {
+                const url = `${prowlarrBase}/api/v1/search?query=${encodeURIComponent(searchQuery)}&type=search&limit=10&indexerIds=${indexerId}`;
+                const resp = await fetch(url, { headers: searchHeaders, signal: AbortSignal.timeout(15000) });
+                if (!resp.ok) return null;
+                const results = await resp.json();
+                if (!results.length) return null;
+                return results[0]; // best match
+              };
 
-                for (const r of sorted) {
-                  // Try 1337x scrape first (stable magnets)
-                  if ((r.indexer||'').toLowerCase().includes('1337x') && r.infoUrl) {
-                    const LEET_BASES = ['https://1337xx.to', 'https://1337x.st', 'https://1337x.to'];
-                    const infoPath = new URL(r.infoUrl).pathname;
-                    for (const base of LEET_BASES) {
-                      try {
-                        const pageResp = await fetch(`${base}${infoPath}`, {
-                          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-                          redirect: 'follow', signal: AbortSignal.timeout(10000)
-                        });
-                        if (!pageResp.ok) continue;
-                        const html = await pageResp.text();
-                        const magnetMatch = html.match(/href="(magnet:\?[^"]+)"/i);
-                        if (magnetMatch) {
-                          console.log(`[addAndDetect] Got fresh magnet from 1337x`);
-                          addBody = `urls=${encodeURIComponent(magnetMatch[1])}`;
-                          addContentType = 'application/x-www-form-urlencoded';
-                          torrentResp = { ok: true };
-                          break;
-                        }
-                      } catch {}
-                    }
-                    if (torrentResp.ok) break;
-                  }
-                  // Fall back to direct magnet if available
-                  const magnet = r.magnetUrl || (r.guid && r.guid.startsWith('magnet:') ? r.guid : null);
-                  if (magnet) {
-                    console.log(`[addAndDetect] Got fresh magnet from ${r.indexer}`);
-                    addBody = `urls=${encodeURIComponent(magnet)}`;
-                    addContentType = 'application/x-www-form-urlencoded';
-                    torrentResp = { ok: true };
-                    break;
-                  }
+              // Try 1337x first (indexer 4), fall back to ext.to (indexer 7)
+              let match = await tryIndexer(4);
+              if (!match) {
+                console.log(`[addAndDetect] 1337x returned no results, trying ext.to...`);
+                match = await tryIndexer(7);
+              }
+
+              if (match) {
+                const dlUrl = match.downloadUrl || match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
+                if (dlUrl) {
+                  console.log(`[addAndDetect] Got fresh URL from ${match.indexer}, retrying...`);
+                  torrentResp = await fetch(dlUrl, { headers, redirect: 'follow', signal: AbortSignal.timeout(15000) });
                 }
               }
             } catch (retryErr) {
-              console.log(`[addAndDetect] Re-resolve failed: ${retryErr.message}`);
+              console.log(`[addAndDetect] Re-search failed: ${retryErr.message}`);
             }
           }
           if (!torrentResp.ok) throw new Error(`Prowlarr returned ${torrentResp.status} downloading torrent`);

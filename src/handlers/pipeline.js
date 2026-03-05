@@ -863,7 +863,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
       transferDetail: null, parallelTransfers: null, renamePreview: null, torrentFiles: null,
       options: {
         torrentHash: opts.torrentHash || null, remotePath,
-        grabUrl: opts.grabUrl || null, indexer: opts.indexer || '',
+        grabUrl: opts.grabUrl || null, indexer: opts.indexer || '', infoUrl: opts.infoUrl || null,
         longSeed: opts.longSeed || false,
         doTransfer: opts.doTransfer !== false, doRename: opts.doRename !== false,
         renameType: opts.renameType || 'movie', renameQuery: opts.renameQuery || '',
@@ -986,7 +986,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
   // Auto-grab endpoint (Companion compatibility)
   app.post('/auto-grab', auth, async (req, res) => {
     try {
-      const { url, title, type } = req.body;
+      const { url, title, type, infoUrl } = req.body;
       if (!url) return res.status(400).json({ error: 'No URL provided' });
       const contentType = type || 'movie';
       const renameType = contentType === 'tv' ? 'tv' : 'movie';
@@ -994,7 +994,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
       console.log(`[auto-grab] ${title || 'unknown'} | type: ${contentType} | move: ${moveType}`);
       
       const opts = {
-        name: title || 'Companion Request', grabUrl: url, indexer: '', longSeed: false,
+        name: title || 'Companion Request', grabUrl: url, indexer: '', infoUrl: infoUrl || null, longSeed: false,
         doTransfer: true, doRename: true, renameType, doMove: true, moveType,
       };
       
