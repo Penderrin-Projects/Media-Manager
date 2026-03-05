@@ -440,17 +440,34 @@ function setupProwlarrRoutes(app, store, auth) {
       const torrentIndexers = allIndexers.filter(i => i.enable && i.protocol === 'torrent');
       if (!torrentIndexers.length) throw new Error('No enabled torrent indexers found');
       
-      const searches = torrentIndexers.map(async (idx) => {
-        try {
-          const url = `${base}/api/v1/search?query=${encodeURIComponent(query)}&indexerIds=${idx.id}&type=search`;
-          const r = await fetch(url, { headers });
-          if (!r.ok) return { indexer: idx.name, success: false, results: [] };
-          const data = await r.json();
-          return { indexer: idx.name, success: true, results: data };
-        } catch { return { indexer: idx.name, success: false, results: [] }; }
-      });
+      // Search 1337x first — its proxy URLs work reliably
+      const leet = torrentIndexers.filter(i => /1337/i.test(i.name));
+      const others = torrentIndexers.filter(i => !/1337/i.test(i.name) && !/nyaa/i.test(i.name));
+
+      const searchIndexers = async (indexers) => {
+        const searches = indexers.map(async (idx) => {
+          try {
+            const url = `${base}/api/v1/search?query=${encodeURIComponent(query)}&indexerIds=${idx.id}&type=search`;
+            const r = await fetch(url, { headers });
+            if (!r.ok) return { indexer: idx.name, success: false, results: [] };
+            const data = await r.json();
+            return { indexer: idx.name, success: true, results: data };
+          } catch { return { indexer: idx.name, success: false, results: [] }; }
+        });
+        return Promise.all(searches);
+      };
+
+      // 1337x first
+      let outcomes = await searchIndexers(leet);
+      let totalResults = outcomes.reduce((sum, o) => sum + o.results.length, 0);
       
-      const outcomes = await Promise.all(searches);
+      // Fall back to ext.to/others only if 1337x returned nothing
+      if (totalResults === 0 && others.length > 0) {
+        console.log(`[search] 1337x empty, falling back to: ${others.map(i => i.name).join(', ')}`);
+        const fallbackOutcomes = await searchIndexers(others);
+        outcomes = outcomes.concat(fallbackOutcomes);
+      }
+
       const indexerStatus = outcomes.map(o => ({ name: o.indexer, success: o.success, count: o.results.length }));
       const allResults = [];
       for (const o of outcomes) {
@@ -602,6 +619,70 @@ function setupProwlarrRoutes(app, store, auth) {
                   const infoPath = new URL(match.infoUrl).pathname;
                   const { magnet: scrapedMagnet } = await scrape1337xMagnet(infoPath);
                   if (scrapedMagnet) return res.json({ success: true, downloadUrl: scrapedMagnet });
+                }
+                // Method 3: For non-1337x indexers (ext.to etc), the proxy URL is fresh — fetch it
+                // immediately and extract the magnet/torrent before it expires
+                if (match.downloadUrl) {
+                  try {
+                    console.log(`[resolve-magnet] Fetching fresh proxy URL from ${match.indexer}...`);
+                    const proxyHeaders = cfg.apiKey ? { 'X-Api-Key': cfg.apiKey } : {};
+                    const proxyResp = await fetch(match.downloadUrl, { headers: proxyHeaders, redirect: 'follow', signal: AbortSignal.timeout(30000) });
+                    if (proxyResp.ok) {
+                      const contentType = proxyResp.headers.get('content-type') || '';
+                      const finalUrl = proxyResp.url || match.downloadUrl;
+                      if (finalUrl.startsWith('magnet:')) {
+                        console.log(`[resolve-magnet] Proxy redirected to magnet`);
+                        return res.json({ success: true, downloadUrl: finalUrl });
+                      }
+                      if (contentType.includes('text/plain') || contentType.includes('text/html')) {
+                        const text = await proxyResp.text();
+                        if (text.trim().startsWith('magnet:')) {
+                          console.log(`[resolve-magnet] Proxy returned magnet in body`);
+                          return res.json({ success: true, downloadUrl: text.trim() });
+                        }
+                      }
+                      if (contentType.includes('bittorrent')) {
+                        // Got a valid torrent file — return the fresh proxy URL for immediate use
+                        console.log(`[resolve-magnet] Proxy returned torrent file, returning fresh URL`);
+                        return res.json({ success: true, downloadUrl: match.downloadUrl });
+                      }
+                    } else {
+                      console.log(`[resolve-magnet] Proxy fetch failed: ${proxyResp.status} — indexer ${match.indexer} download broken`);
+                    }
+                  } catch (proxyErr) {
+                    console.log(`[resolve-magnet] Proxy fetch error: ${proxyErr.message}`);
+                  }
+                  // Proxy URL broken (410 etc) — try to find the same content on a working indexer
+                  // Look for any 1337x result in the search results and scrape its magnet
+                  console.log(`[resolve-magnet] Falling back to 1337x scrape for any matching result...`);
+                  const leet1337 = results.find(r => (r.indexer || '').toLowerCase().includes('1337x') && r.infoUrl);
+                  if (leet1337) {
+                    try {
+                      const infoPath = new URL(leet1337.infoUrl).pathname;
+                      const { magnet: scrapedMagnet } = await scrape1337xMagnet(infoPath);
+                      if (scrapedMagnet) {
+                        console.log(`[resolve-magnet] Got magnet from 1337x fallback: ${leet1337.title}`);
+                        return res.json({ success: true, downloadUrl: scrapedMagnet, fallbackTitle: leet1337.title });
+                      }
+                    } catch (e) {
+                      console.log(`[resolve-magnet] 1337x fallback scrape failed: ${e.message}`);
+                    }
+                  }
+                  // Last resort: try fetching from a working 1337x proxy URL
+                  const leet1337dl = results.find(r => (r.indexer || '').toLowerCase().includes('1337x') && r.downloadUrl);
+                  if (leet1337dl) {
+                    try {
+                      console.log(`[resolve-magnet] Trying 1337x proxy URL for: ${leet1337dl.title}`);
+                      const proxyHeaders2 = cfg.apiKey ? { 'X-Api-Key': cfg.apiKey } : {};
+                      const proxyResp2 = await fetch(leet1337dl.downloadUrl, { headers: proxyHeaders2, redirect: 'follow', signal: AbortSignal.timeout(15000) });
+                      if (proxyResp2.ok) {
+                        console.log(`[resolve-magnet] 1337x proxy works, returning URL`);
+                        return res.json({ success: true, downloadUrl: leet1337dl.downloadUrl, fallbackTitle: leet1337dl.title });
+                      }
+                    } catch (e) {
+                      console.log(`[resolve-magnet] 1337x proxy failed: ${e.message}`);
+                    }
+                  }
                 }
               }
               // No magnet found via search — try all 1337x results
