@@ -57,7 +57,34 @@ async function addAndDetect(store, url, searchName) {
       }
 
       if (torrentResp) {
-        if (!torrentResp.ok) throw new Error(`Prowlarr returned ${torrentResp.status} downloading torrent`);
+        if (!torrentResp.ok) {
+          // On 410 (expired link), try to re-fetch a fresh URL from Prowlarr by searching for the torrent name
+          if (torrentResp.status === 410 && searchName) {
+            console.log(`[addAndDetect] 410 expired link, re-searching Prowlarr for: ${searchName}`);
+            try {
+              const prowlarrCfg = store.get('prowlarr') || {};
+              const prowlarrBase = (prowlarrCfg.url || '').replace(/\/$/, '');
+              const searchHeaders = { 'X-Api-Key': prowlarrCfg.apiKey, 'Accept': 'application/json' };
+              const searchUrl = `${prowlarrBase}/api/v1/search?query=${encodeURIComponent(searchName)}&type=search&limit=20`;
+              const searchResp = await fetch(searchUrl, { headers: searchHeaders });
+              if (searchResp.ok) {
+                const results = await searchResp.json();
+                // Find closest title match
+                const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const target = norm(searchName);
+                const match = results.find(r => norm(r.title) === target) || results[0];
+                if (match && (match.downloadUrl || match.magnetUrl || (match.guid && match.guid.startsWith('magnet:')))) {
+                  const freshUrl = match.downloadUrl || match.magnetUrl || match.guid;
+                  console.log(`[addAndDetect] Got fresh URL, retrying...`);
+                  torrentResp = await fetch(freshUrl, { headers, redirect: 'follow' });
+                }
+              }
+            } catch (retryErr) {
+              console.log(`[addAndDetect] Re-search failed: ${retryErr.message}`);
+            }
+          }
+          if (!torrentResp.ok) throw new Error(`Prowlarr returned ${torrentResp.status} downloading torrent`);
+        }
         const contentType = torrentResp.headers.get('content-type') || '';
         const finalUrl = torrentResp.url || url;
 
