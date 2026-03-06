@@ -38,6 +38,7 @@
     .field input[type="password"] { font-family: monospace; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .field-hint { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .field-hint a { color: var(--accent); }
     .btn {
       padding: 10px 20px; border: none; border-radius: var(--radius);
       font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
@@ -47,10 +48,11 @@
     .btn-primary:hover { background: var(--accent-hover); }
     .btn-secondary { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
     .btn-secondary:hover { background: var(--border); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+    .btn-danger:hover { background: rgba(248,81,73,0.1); }
     .btn-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
-    .status-grid {
-      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;
-    }
+    .status-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
     .status-chip {
       display: flex; align-items: center; gap: 6px;
       padding: 6px 12px; border-radius: 20px;
@@ -72,6 +74,27 @@
     @keyframes slideUp { from { opacity: 0; transform: translateX(-50%) translateY(10px); } }
     .logo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
     .logo-row svg { width: 32px; height: 32px; color: var(--accent); }
+    .lib-row {
+      display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px;
+      align-items: center; padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .lib-row input { padding: 8px 10px; font-size: 13px; }
+    .lib-row:last-of-type { border-bottom: none; }
+    .lib-header {
+      display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px;
+      font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.5px; padding-bottom: 4px;
+    }
+    .toggle-shows {
+      display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim);
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    .toggle-shows input { width: auto; margin: 0; }
+    .required-badge {
+      display: inline-block; font-size: 9px; color: var(--warning); border: 1px solid var(--warning);
+      border-radius: 3px; padding: 1px 4px; margin-left: 6px; vertical-align: middle;
+    }
   </style>
 </head>
 <body>
@@ -85,21 +108,29 @@
 
 <div class="status-grid" id="statusGrid"></div>
 
+<!-- SEEDBOX -->
 <div class="section">
   <div class="section-title">qBittorrent (Seedbox)</div>
-  <div class="field"><label>Web UI URL</label><input id="qbitUrl" placeholder="https://your-seedbox:8080"></div>
+  <div class="field">
+    <label>Web UI URL</label>
+    <input id="qbitUrl" placeholder="https://your-seedbox:8080">
+    <div class="field-hint">Your seedbox's qBittorrent web interface URL. Find it in your seedbox provider's dashboard.</div>
+  </div>
   <div class="field-row">
     <div class="field"><label>Username</label><input id="qbitUsername"></div>
     <div class="field"><label>Password</label><input id="qbitPassword" type="password"></div>
   </div>
+  <div class="field-hint">Your qBittorrent login credentials — usually provided by your seedbox host.</div>
   <div class="btn-row">
     <button class="btn btn-secondary" onclick="testService('qbit')">Test Connection</button>
     <span id="result-qbit"></span>
   </div>
 </div>
 
+<!-- SFTP -->
 <div class="section">
   <div class="section-title">SFTP (Seedbox File Transfer)</div>
+  <div class="field-hint" style="margin-bottom:8px">Used to transfer completed downloads from your seedbox to the NAS. These credentials come from your seedbox provider.</div>
   <div class="field-row">
     <div class="field"><label>Host</label><input id="sftpHost" placeholder="hostname or IP"></div>
     <div class="field"><label>Port</label><input id="sftpPort" type="number" value="22" style="width:80px"></div>
@@ -108,74 +139,121 @@
     <div class="field"><label>Username</label><input id="sftpUsername"></div>
     <div class="field"><label>Password</label><input id="sftpPassword" type="password"></div>
   </div>
-  <div class="field"><label>Remote Download Path</label><input id="sftpRemotePath" placeholder="/home/user/downloads"></div>
+  <div class="field">
+    <label>Remote Download Path</label>
+    <input id="sftpRemotePath" placeholder="/home/user/downloads">
+    <div class="field-hint">The folder on your seedbox where qBittorrent saves completed downloads.</div>
+  </div>
   <div class="btn-row">
     <button class="btn btn-secondary" onclick="testService('sftp')">Test Connection</button>
     <span id="result-sftp"></span>
   </div>
 </div>
 
+<!-- PROWLARR -->
 <div class="section">
   <div class="section-title">Prowlarr (Indexer Search)</div>
-  <div class="field"><label>URL</label><input id="prowlarrUrl" placeholder="http://192.168.x.x:9696"></div>
-  <div class="field"><label>API Key</label><input id="prowlarrApiKey" placeholder="Found in Prowlarr → Settings → General"></div>
+  <div class="field">
+    <label>URL</label>
+    <input id="prowlarrUrl" placeholder="http://192.168.x.x:9696">
+    <div class="field-hint">Your Prowlarr instance URL. Install Prowlarr from <a href="https://prowlarr.com/" target="_blank">prowlarr.com</a> — it manages torrent indexer searches.</div>
+  </div>
+  <div class="field">
+    <label>API Key</label>
+    <input id="prowlarrApiKey">
+    <div class="field-hint">In Prowlarr: Settings → General → Security → API Key. Copy and paste it here.</div>
+  </div>
   <div class="btn-row">
     <button class="btn btn-secondary" onclick="testService('prowlarr')">Test Connection</button>
     <span id="result-prowlarr"></span>
   </div>
 </div>
 
+<!-- TMDB -->
 <div class="section">
   <div class="section-title">TMDB (Metadata &amp; Renaming)</div>
-  <div class="field"><label>API Key</label><input id="tmdbApiKey" placeholder="Free at themoviedb.org → Settings → API"></div>
-  <div class="field-hint">Required for file renaming and poster lookups. Get a free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org</a></div>
+  <div class="field">
+    <label>API Key</label>
+    <input id="tmdbApiKey">
+    <div class="field-hint">Free API key for movie/TV metadata and posters. Get one in 2 minutes:
+      <a href="https://www.themoviedb.org/signup" target="_blank">1. Create account</a> →
+      <a href="https://www.themoviedb.org/settings/api" target="_blank">2. Request API key</a> → Copy the "API Key (v3 auth)" value.</div>
+  </div>
   <div class="btn-row">
     <button class="btn btn-secondary" onclick="testService('tmdb')">Test Connection</button>
     <span id="result-tmdb"></span>
   </div>
 </div>
 
+<!-- PLEX -->
 <div class="section">
-  <div class="section-title">Plex (Duplicate Detection)</div>
-  <div class="field"><label>Server URL</label><input id="plexUrl" placeholder="http://192.168.1.x:32400"></div>
-  <div class="field"><label>Token</label><input id="plexToken" placeholder="Find in Plex → Settings → Troubleshooting → X-Plex-Token" type="password"></div>
-  <div class="field-hint">Used to warn before grabbing content already in your library.</div>
+  <div class="section-title">Plex (Duplicate Detection) — Optional</div>
+  <div class="field">
+    <label>Server URL</label>
+    <input id="plexUrl" placeholder="http://192.168.1.x:32400">
+    <div class="field-hint">Your local Plex server URL. Usually http://YOUR_NAS_IP:32400</div>
+  </div>
+  <div class="field">
+    <label>Token</label>
+    <input id="plexToken" type="password" placeholder="X-Plex-Token">
+    <div class="field-hint">Warns before grabbing content already in Plex. To find your token: open Plex Web → pick any media → Get Info → View XML → copy the "X-Plex-Token" from the URL bar.</div>
+  </div>
 </div>
 
+<!-- MEDIA LIBRARIES -->
 <div class="section">
-  <div class="section-title">Media Library Paths</div>
-  <div class="field-hint" style="margin-bottom:12px">These are container-internal paths. They map to your NAS folders via Docker volume mounts.</div>
-  <div class="field"><label>Staging (temp workspace)</label><input id="pathStaging" value="/staging"></div>
-  <div class="field-row">
-    <div class="field"><label>Movies</label><input id="pathMovies" value="/media/movies"></div>
-    <div class="field"><label>TV Shows</label><input id="pathTV" value="/media/tv"></div>
+  <div class="section-title">Media Libraries</div>
+  <div class="field-hint" style="margin-bottom:12px">Define where your media goes. Paths are container-internal — they map to your NAS folders via Docker volume mounts.
+    Movies and TV Shows are required. Add more for additional libraries (anime, kids, etc).</div>
+
+  <div class="field">
+    <label>Staging Path <span class="required-badge">required</span></label>
+    <input id="pathStaging" value="/staging">
+    <div class="field-hint">Temporary workspace for downloads before renaming. Gets cleaned up after each job.</div>
   </div>
-  <div class="field-row">
-    <div class="field"><label>Kids Movies</label><input id="pathKidsMovies" value="/media/kids-movies"></div>
-    <div class="field"><label>Asian Movies</label><input id="pathAsianMovies" value="/media/asian-movies"></div>
+
+  <div style="margin-top:16px">
+    <div class="lib-header">
+      <span>Library Name</span>
+      <span>Container Path</span>
+      <span>Shows?</span>
+      <span></span>
+    </div>
+    <div id="libraryList"></div>
   </div>
-  <div class="field-row">
-    <div class="field"><label>Asian Shows</label><input id="pathAsianShows" value="/media/asian-shows"></div>
-    <div class="field"><label>Anime Movies</label><input id="pathAnimeMovies" value="/media/anime-movies"></div>
+
+  <div class="btn-row" style="margin-top:12px">
+    <button class="btn btn-secondary btn-sm" onclick="addLibrary()">+ Add Library</button>
+    <span class="field-hint">New libraries default to movie handling. Check "Shows?" for TV show logic (episode matching, season folders).</span>
   </div>
-  <div class="field"><label>Anime Shows</label><input id="pathAnimeShows" value="/media/anime-shows"></div>
 </div>
 
+<!-- SERVER -->
 <div class="section">
   <div class="section-title">Server</div>
   <div class="field-row">
-    <div class="field"><label>Port</label><input id="serverPort" type="number" value="9876"></div>
-    <div class="field"><label>API Key (optional)</label><input id="serverApiKey" placeholder="Leave blank for open access"></div>
+    <div class="field">
+      <label>Port</label>
+      <input id="serverPort" type="number" value="9876">
+      <div class="field-hint">Default: 9876. Change only if you have a conflict.</div>
+    </div>
+    <div class="field">
+      <label>API Key (optional)</label>
+      <input id="serverApiKey" placeholder="Leave blank for open access">
+      <div class="field-hint">Protects the API. Leave blank if only accessible on your local network.</div>
+    </div>
   </div>
 </div>
 
+<!-- SMS -->
 <div class="section">
-  <div class="section-title">SMS Notifications (Gmail SMTP)</div>
+  <div class="section-title">SMS Notifications (Gmail SMTP) — Optional</div>
   <div class="field-row">
     <div class="field"><label>Gmail Address</label><input id="smsSmtpUser" type="email" placeholder="you@gmail.com"></div>
-    <div class="field"><label>App Password</label><input id="smsSmtpPass" type="password" placeholder="Gmail app password"></div>
+    <div class="field"><label>App Password</label><input id="smsSmtpPass" type="password" placeholder="16-character app password"></div>
   </div>
-  <div class="field-hint">Used by Companion to send SMS notifications when downloads complete. Generate an app password at myaccount.google.com/apppasswords</div>
+  <div class="field-hint">Get notified via text when downloads are ready in Plex. Requires a Gmail account with an app password.
+    <a href="https://myaccount.google.com/apppasswords" target="_blank">Generate an app password here</a> (you may need to enable 2-Step Verification first).</div>
 </div>
 
 <div class="btn-row" style="margin-top:24px">
@@ -184,32 +262,48 @@
 </div>
 
 <script>
+// ── Library Management ────────────────────────────────────────────
+
+let libraries = [];
+
+function renderLibraries() {
+  const el = document.getElementById('libraryList');
+  el.innerHTML = libraries.map((lib, i) => {
+    const required = i < 2; // First two (Movies, TV) are required
+    return `<div class="lib-row">
+      <input value="${escHtml(lib.name)}" placeholder="Library name" onchange="libraries[${i}].name=this.value" ${required ? '' : ''}>
+      <input value="${escHtml(lib.path)}" placeholder="/media/folder" onchange="libraries[${i}].path=this.value">
+      <label class="toggle-shows"><input type="checkbox" ${lib.isShows ? 'checked' : ''} onchange="libraries[${i}].isShows=this.checked"> Shows?</label>
+      ${required ? '<span class="required-badge">required</span>' : `<button class="btn btn-danger btn-sm" onclick="removeLibrary(${i})">✕</button>`}
+    </div>`;
+  }).join('');
+}
+
+function addLibrary() {
+  libraries.push({ name: '', path: '/media/', isShows: false });
+  renderLibraries();
+}
+
+function removeLibrary(i) {
+  if (i < 2) return; // Can't remove Movies or TV
+  libraries.splice(i, 1);
+  renderLibraries();
+}
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+// ── Settings Load/Save ────────────────────────────────────────────
+
 const fieldMap = {
-  'seedbox.qbitUrl': 'qbitUrl',
-  'seedbox.qbitUsername': 'qbitUsername',
-  'seedbox.qbitPassword': 'qbitPassword',
-  'seedbox.sftpHost': 'sftpHost',
-  'seedbox.sftpPort': 'sftpPort',
-  'seedbox.sftpUsername': 'sftpUsername',
-  'seedbox.sftpPassword': 'sftpPassword',
-  'seedbox.sftpRemotePath': 'sftpRemotePath',
-  'prowlarr.url': 'prowlarrUrl',
-  'prowlarr.apiKey': 'prowlarrApiKey',
-  'tmdb.apiKey': 'tmdbApiKey',
-  'plex.url': 'plexUrl',
-  'plex.token': 'plexToken',
+  'seedbox.qbitUrl': 'qbitUrl', 'seedbox.qbitUsername': 'qbitUsername',
+  'seedbox.qbitPassword': 'qbitPassword', 'seedbox.sftpHost': 'sftpHost',
+  'seedbox.sftpPort': 'sftpPort', 'seedbox.sftpUsername': 'sftpUsername',
+  'seedbox.sftpPassword': 'sftpPassword', 'seedbox.sftpRemotePath': 'sftpRemotePath',
+  'prowlarr.url': 'prowlarrUrl', 'prowlarr.apiKey': 'prowlarrApiKey',
+  'tmdb.apiKey': 'tmdbApiKey', 'plex.url': 'plexUrl', 'plex.token': 'plexToken',
   'paths.staging': 'pathStaging',
-  'paths.nasMovies': 'pathMovies',
-  'paths.nasTVShows': 'pathTV',
-  'paths.nasKidsMovies': 'pathKidsMovies',
-  'paths.nasAsianMovies': 'pathAsianMovies',
-  'paths.nasAsianShows': 'pathAsianShows',
-  'paths.nasAnimeMovies': 'pathAnimeMovies',
-  'paths.nasAnimeShows': 'pathAnimeShows',
-  'server.port': 'serverPort',
-  'server.apiKey': 'serverApiKey',
-  'sms.smtpUser': 'smsSmtpUser',
-  'sms.smtpPass': 'smsSmtpPass',
+  'server.port': 'serverPort', 'server.apiKey': 'serverApiKey',
+  'sms.smtpUser': 'smsSmtpUser', 'sms.smtpPass': 'smsSmtpPass',
 };
 
 function getNestedValue(obj, path) {
@@ -220,11 +314,37 @@ async function loadSettings() {
   try {
     const r = await fetch('/api/settings/raw');
     const cfg = await r.json();
+
+    // Load simple fields
     for (const [cfgPath, elId] of Object.entries(fieldMap)) {
       const el = document.getElementById(elId);
       const val = getNestedValue(cfg, cfgPath);
       if (el && val !== undefined && val !== null) el.value = val;
     }
+
+    // Load libraries
+    if (cfg.paths && cfg.paths.libraries && cfg.paths.libraries.length) {
+      libraries = cfg.paths.libraries;
+    } else {
+      // Convert legacy paths to libraries
+      libraries = [
+        { name: 'Movies', path: cfg.paths?.nasMovies || '/media/movies', isShows: false },
+        { name: 'TV Shows', path: cfg.paths?.nasTVShows || '/media/tv', isShows: true },
+      ];
+      // Add any non-empty legacy paths
+      const legacy = [
+        { name: 'Kids Movies', key: 'nasKidsMovies', isShows: false },
+        { name: 'Asian Movies', key: 'nasAsianMovies', isShows: false },
+        { name: 'Asian Shows', key: 'nasAsianShows', isShows: true },
+        { name: 'Anime Movies', key: 'nasAnimeMovies', isShows: false },
+        { name: 'Anime Shows', key: 'nasAnimeShows', isShows: true },
+      ];
+      for (const l of legacy) {
+        const val = cfg.paths?.[l.key];
+        if (val) libraries.push({ name: l.name, path: val, isShows: l.isShows });
+      }
+    }
+    renderLibraries();
   } catch (e) {
     showToast('Failed to load settings: ' + e.message, 'error');
   }
@@ -233,6 +353,8 @@ async function loadSettings() {
 async function saveAll() {
   try {
     const updates = {};
+
+    // Simple fields
     for (const [cfgPath, elId] of Object.entries(fieldMap)) {
       const el = document.getElementById(elId);
       if (!el) continue;
@@ -240,6 +362,28 @@ async function saveAll() {
       if (el.type === 'number') val = parseInt(val) || 0;
       updates[cfgPath] = val;
     }
+
+    // Libraries (new format)
+    updates['paths.libraries'] = libraries.filter(l => l.name && l.path);
+
+    // Also write legacy flat paths for backward compatibility
+    // First movie lib → nasMovies, first TV lib → nasTVShows
+    const movieLibs = libraries.filter(l => !l.isShows && l.path);
+    const tvLibs = libraries.filter(l => l.isShows && l.path);
+    if (movieLibs[0]) updates['paths.nasMovies'] = movieLibs[0].path;
+    if (tvLibs[0]) updates['paths.nasTVShows'] = tvLibs[0].path;
+
+    // Map additional libs to legacy fields by name
+    for (const lib of libraries) {
+      if (!lib.path || !lib.name) continue;
+      const slug = lib.name.toLowerCase().replace(/\s+/g, '');
+      if (slug === 'kidsmovies') updates['paths.nasKidsMovies'] = lib.path;
+      else if (slug === 'asianmovies') updates['paths.nasAsianMovies'] = lib.path;
+      else if (slug === 'asianshows') updates['paths.nasAsianShows'] = lib.path;
+      else if (slug === 'animemovies') updates['paths.nasAnimeMovies'] = lib.path;
+      else if (slug === 'animeshows') updates['paths.nasAnimeShows'] = lib.path;
+    }
+
     const r = await fetch('/api/settings/bulk', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -256,6 +400,8 @@ async function saveAll() {
     showToast('Save failed: ' + e.message, 'error');
   }
 }
+
+// ── Connection Tests ──────────────────────────────────────────────
 
 async function testService(name) {
   const el = document.getElementById('result-' + name);
@@ -276,11 +422,7 @@ async function testService(name) {
   }
 }
 
-async function testAll() {
-  for (const svc of ['qbit', 'sftp', 'prowlarr', 'tmdb']) {
-    testService(svc);
-  }
-}
+async function testAll() { for (const svc of ['qbit', 'sftp', 'prowlarr', 'tmdb']) testService(svc); }
 
 function updateChip(name, ok) {
   const chip = document.getElementById('chip-' + name);
@@ -290,16 +432,10 @@ function updateChip(name, ok) {
 }
 
 function buildStatusGrid() {
-  const grid = document.getElementById('statusGrid');
-  const services = [
-    { id: 'qbit', label: 'Seedbox' },
-    { id: 'sftp', label: 'SFTP' },
-    { id: 'prowlarr', label: 'Prowlarr' },
-    { id: 'tmdb', label: 'TMDB' },
-  ];
-  grid.innerHTML = services.map(s =>
-    `<div class="status-chip" id="chip-${s.id}"><span class="dot dot-pending"></span>${s.label}</div>`
-  ).join('');
+  document.getElementById('statusGrid').innerHTML = [
+    { id: 'qbit', label: 'Seedbox' }, { id: 'sftp', label: 'SFTP' },
+    { id: 'prowlarr', label: 'Prowlarr' }, { id: 'tmdb', label: 'TMDB' },
+  ].map(s => `<div class="status-chip" id="chip-${s.id}"><span class="dot dot-pending"></span>${s.label}</div>`).join('');
 }
 
 function showToast(msg, type) {
