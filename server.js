@@ -34,7 +34,7 @@ const DEFAULT_CONFIG = {
   tmdb: { apiKey: '' },
   plex: { url: '', token: '' },
   server: { port: 9876, apiKey: '' },
-  directToPC: { enabled: false, localPath: 'C:\\Users\\tabor\\Desktop\\Torrents' }
+  directToPC: { enabled: false, localPath: '' }
 };
 
 function loadConfig() {
@@ -326,21 +326,7 @@ app.post('/magnet', (req, res) => {
 });
 
 // ========== HELPERS ==========
-function formatBytes(b) {
-  if (!b || b < 0) return '0 B';
-  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(Math.abs(b)) / Math.log(1024));
-  return (b / Math.pow(1024, i)).toFixed(1) + ' ' + u[i];
-}
-
-function formatUptime(s) {
-  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-  const parts = [];
-  if (d) parts.push(`${d}d`);
-  if (h) parts.push(`${h}h`);
-  parts.push(`${m}m`);
-  return parts.join(' ');
-}
+const { formatBytes, formatUptime } = require('./src/utils');
 
 // ========== START ==========
 const PORT = parseInt(process.env.PORT) || config.server.port || 9876;

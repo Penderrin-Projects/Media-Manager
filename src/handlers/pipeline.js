@@ -1,13 +1,11 @@
 const path = require('path');
 const fs = require('fs');
 const SftpClient = require('ssh2-sftp-client');
+const { formatBytes: fmtB, formatDuration: fmtSec, collectRemoteFiles } = require('../utils');
 
 let jobs = [];
 let jobId = 1;
 let _store = null; // reference for saving
-
-function fmtB(b) { if (!b || b < 0) return '0 B'; const u = ['B', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(Math.abs(b)) / Math.log(1024)); return (b / Math.pow(1024, i)).toFixed(1) + ' ' + u[i]; }
-function fmtSec(s) { if (!s || s <= 0) return ''; s = Math.round(s); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = s % 60; if (h > 0) return `${h}h ${m}m`; if (m > 0) return `${m}m ${sec}s`; return `${sec}s`; }
 
 // ========== Persistent Queue ==========
 function saveQueue() {
@@ -260,23 +258,6 @@ async function stepTorrent(job, store) {
 // ========== Concurrent SFTP Transfer ==========
 
 const MAX_CONCURRENT = 10;
-
-// Walk remote directory tree, collect all file paths with sizes
-async function collectRemoteFiles(sftp, remotePath, basePath) {
-  const result = [];
-  const items = await sftp.list(remotePath);
-  for (const item of items) {
-    const rp = `${remotePath}/${item.name}`;
-    const lp = path.join(basePath, item.name);
-    if (item.type === 'd') {
-      const subFiles = await collectRemoteFiles(sftp, rp, lp);
-      result.push(...subFiles);
-    } else {
-      result.push({ remote: rp, local: lp, name: item.name, size: item.size });
-    }
-  }
-  return result;
-}
 
 async function stepTransfer(job, store) {
   const s = store.get('seedbox'), sp = store.get('paths.staging');
