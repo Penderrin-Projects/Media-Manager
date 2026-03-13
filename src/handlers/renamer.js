@@ -30,11 +30,11 @@ function parseMediaFilename(filename) {
     if (match) {
       let series = match[1].trim();
       let seriesYear = null;
-      // Extract year from series name (e.g. "Scrubs 2026" → series: "Scrubs", year: 2026)
-      const yearInSeries = series.match(/[\s._-]+((?:19|20)\d{2})$/);
+      // Extract year from series name: bare "Scrubs 2026" or parenthesized "Ted Lasso (2020)"
+      const yearInSeries = series.match(/[\s._-]+[\(\[]?((?:19|20)\d{2})[\)\]]?$/);
       if (yearInSeries) {
         seriesYear = parseInt(yearInSeries[1]);
-        series = series.replace(/[\s._-]+(?:19|20)\d{2}$/, '').trim();
+        series = series.replace(/[\s._-]+[\(\[]?(?:19|20)\d{2}[\)\]]?$/, '').trim();
       }
       return { type: 'tv', series, seriesYear, season: parseInt(match[2]), episode: parseInt(match[3]), title: '', ...tags };
     }
@@ -241,8 +241,14 @@ async function buildRenamePlan(stagingPath, type, apiKey, query) {
     }
   } else {
     const parsed = files.map(f => ({ path: f, ...parseMediaFilename(f) }));
-    const searchQuery = query || cleanForSearch(parsed[0].series || parsed[0].title || path.basename(files[0]));
-    const searchYear = parsed[0].seriesYear || null;
+    let searchQuery = query || cleanForSearch(parsed[0].series || parsed[0].title || path.basename(files[0]));
+    let searchYear = parsed[0].seriesYear || null;
+    // Safety: strip (year) from search query if parser left it in
+    const yearInQuery = searchQuery.match(/\s*[\(\[]?((?:19|20)\d{2})[\)\]]?$/);
+    if (yearInQuery) {
+      if (!searchYear) searchYear = parseInt(yearInQuery[1]);
+      searchQuery = searchQuery.replace(/\s*[\(\[]?(?:19|20)\d{2}[\)\]]?$/, '').trim();
+    }
     console.log('[renamer] TV search:', searchQuery, 'year:', searchYear, 'parsed[0]:', JSON.stringify({ series: parsed[0].series, seriesYear: parsed[0].seriesYear, season: parsed[0].season, episode: parsed[0].episode }));
 
     // Search with year first for disambiguation (e.g. Scrubs 2026 vs Scrubs 2001)
@@ -294,7 +300,7 @@ async function executeRenames(plan) {
   for (const op of plan) {
     try {
       const targetDir = path.dirname(op.to);
-      await fs.promises.mkdir(targetDir, { recursive: true });
+      await fs.promises.mkdir(targetDir, { recursive: true, mode: 0o777 });
 
       if (op.from === op.to) {
         results.push({ from: op.fromDisplay, to: op.toDisplay, success: true });
