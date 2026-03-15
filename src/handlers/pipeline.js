@@ -257,7 +257,7 @@ async function stepTorrent(job, store) {
 
 // ========== Concurrent SFTP Transfer ==========
 
-const MAX_CONCURRENT = 10;
+const MAX_CONCURRENT = 4;
 
 async function stepTransfer(job, store) {
   const s = store.get('seedbox'), sp = store.get('paths.staging');
@@ -322,8 +322,8 @@ async function stepTransfer(job, store) {
       throttleBroadcast();
 
       await conn.fastGet(f.remote, f.local, { 
-        chunkSize: 131072, // 128KB chunks (default is 32KB) — reduces round-trips
-        concurrency: 64,   // parallel read requests per file
+        chunkSize: 524288,  // 512KB chunks — larger reads, fewer round-trips
+        concurrency: 32,    // parallel read requests per file (was 64 — less overhead)
         step: (x) => {
         const n = Date.now(), dt = (n - pT) / 1000;
         const spd = dt > 0 ? (x - pB) / dt : 0;

@@ -7,7 +7,7 @@ LABEL org.opencontainers.image.source="https://github.com/Pennderin/Media-Manage
 WORKDIR /app
 
 # Install deps first for layer caching
-COPY package.json ./
+COPY package.json patch-ssh2.js ./
 RUN npm install --production
 
 # Copy application
