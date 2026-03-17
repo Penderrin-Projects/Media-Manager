@@ -30,21 +30,28 @@ async function indexerRequest(store, endpoint, options = {}) {
   return r.json();
 }
 
-async function searchViaHunterr(store, query, pri) {
-  const d = await indexerRequest(store, '/api/search', { method:'POST', body:{query, primaryIndexer:pri||null} });
+async function searchViaHunterr(store, query, pri, exclusive) {
+  const d = await indexerRequest(store, '/api/search', { method:'POST', body:{query, primaryIndexer:pri||null, exclusiveIndexer:!!exclusive} });
   if (!d.success) throw new Error(d.error||'Search failed');
   return { results: (d.results||[]).map(r=>({guid:r.id||r.guid,title:r.title,size:r.size||0,seeders:r.seeders||0,leechers:r.leechers||0,indexer:r.indexer,downloadUrl:r.magnetUrl||null,infoUrl:r.infoUrl,publishDate:r.publishDate||null,imdbId:r.imdbId||null,categories:r.category?[r.category]:[],indexerFlags:[]})), indexerStatus:d.indexerStatus||[] };
 }
 
-async function searchViaProwlarr(store, query, searchType) {
+async function searchViaProwlarr(store, query, searchType, primaryIndexerName, exclusive) {
   const cfg = store.get('prowlarr')||{}; const base = cfg.url.replace(/\/$/, '');
   const h = {'Accept':'application/json'}; if (cfg.apiKey) h['X-Api-Key'] = cfg.apiKey;
   const ir = await fetch(base+'/api/v1/indexer',{headers:h}); if (!ir.ok) throw new Error('Indexers: '+ir.status);
   const all = await ir.json(); const ti = all.filter(i=>i.enable&&i.protocol==='torrent');
   if (!ti.length) throw new Error('No enabled torrent indexers');
-  const leet = ti.find(i=>i.name.toLowerCase().includes('1337x'));
-  const others = ti.filter(i=>!i.name.toLowerCase().includes('1337x'));
-  const pri = leet ? [leet] : ti;
+  let pri, others;
+  if (exclusive && primaryIndexerName) {
+    const match = ti.find(i => i.name.toLowerCase().includes(primaryIndexerName.toLowerCase()));
+    pri = match ? [match] : ti;
+    others = [];
+  } else {
+    const leet = ti.find(i=>i.name.toLowerCase().includes('1337x'));
+    others = ti.filter(i=>!i.name.toLowerCase().includes('1337x'));
+    pri = leet ? [leet] : ti;
+  }
   const doSearch = async (idxs) => {
     const ps = idxs.map(async idx => {
       try { const r = await fetch(base+'/api/v1/search?query='+encodeURIComponent(query)+'&indexerIds='+idx.id+'&type='+(searchType||'search'),{headers:h}); return r.ok ? await r.json() : []; } catch { return []; }
@@ -486,9 +493,9 @@ function setupProwlarrRoutes(app, store, auth) {
       const backend = await detectBackend(store);
       let searchResult;
       if (backend === 'hunterr') {
-        searchResult = await searchViaHunterr(store, query, primaryIndexer || cfg.primaryIndexer);
+        searchResult = await searchViaHunterr(store, query, primaryIndexer || cfg.primaryIndexer, req.body.exclusiveIndexer);
       } else {
-        searchResult = await searchViaProwlarr(store, query);
+        searchResult = await searchViaProwlarr(store, query, null, primaryIndexer, req.body.exclusiveIndexer);
       }
       const allResults = searchResult.results;
 
