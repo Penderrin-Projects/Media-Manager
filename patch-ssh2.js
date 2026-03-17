@@ -6,7 +6,7 @@
  * fast connections because the SSH flow-control window stalls waiting for
  * adjustment ACKs. Native clients like FileZilla use 64MB+ windows.
  *
- * This postinstall script patches those constants to 16MB / 256KB,
+ * This postinstall script patches those constants to 8MB / 64KB,
  * which is enough to saturate a typical seedbox link.
  */
 
@@ -26,12 +26,12 @@ const patches = [
   {
     name: 'PACKET_SIZE',
     from: "const PACKET_SIZE = 32 * 1024;",
-    to:   "const PACKET_SIZE = 256 * 1024; // patched: was 32KB",
+    to:   "const PACKET_SIZE = 64 * 1024; // patched: 64KB (seedbox-safe max)",
   },
   {
     name: 'MAX_WINDOW',
     from: "const MAX_WINDOW = 2 * 1024 * 1024;",
-    to:   "const MAX_WINDOW = 16 * 1024 * 1024; // patched: was 2MB",
+    to:   "const MAX_WINDOW = 8 * 1024 * 1024; // patched: 8MB (optimal for WAN)",
   },
 ];
 
