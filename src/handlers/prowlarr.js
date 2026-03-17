@@ -1,12 +1,61 @@
-async function prowlarrRequest(store, endpoint) {
+// ========== Backend Detection ==========
+let _backendType = null;
+
+async function detectBackend(store) {
+  if (_backendType) return _backendType;
   const cfg = store.get('prowlarr') || {};
-  if (!cfg.url || !cfg.apiKey) throw new Error('Prowlarr not configured');
+  if (!cfg.url) throw new Error('Indexer not configured');
   const base = cfg.url.replace(/\/$/, '');
-  const res = await fetch(`${base}${endpoint}`, {
-    headers: { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' }
-  });
-  if (!res.ok) throw new Error(`Prowlarr ${res.status}: ${res.statusText}`);
-  return res.json();
+  try {
+    const r = await fetch(base + '/api/indexers', { headers: {'Accept':'application/json'}, signal: AbortSignal.timeout(5000) });
+    if (r.ok) { const d = await r.json(); if (d.indexers || d.success !== undefined) { _backendType = 'hunterr'; console.log('[backend] Hunterr at ' + base); return 'hunterr'; } }
+  } catch {}
+  try {
+    const h = {'Accept':'application/json'}; if (cfg.apiKey) h['X-Api-Key'] = cfg.apiKey;
+    const r = await fetch(base + '/api/v1/indexer', { headers: h, signal: AbortSignal.timeout(5000) });
+    if (r.ok) { const d = await r.json(); if (Array.isArray(d)) { _backendType = 'prowlarr'; console.log('[backend] Prowlarr at ' + base); return 'prowlarr'; } }
+  } catch {}
+  throw new Error('Cannot detect indexer at ' + base);
+}
+function resetBackendDetection() { _backendType = null; }
+
+async function indexerRequest(store, endpoint, options = {}) {
+  const cfg = store.get('prowlarr') || {};
+  if (!cfg.url) throw new Error('Indexer not configured');
+  const base = cfg.url.replace(/\/$/, '');
+  const h = {'Accept':'application/json'}; if (cfg.apiKey) h['X-Api-Key'] = cfg.apiKey;
+  if (options.body) h['Content-Type'] = 'application/json';
+  const r = await fetch(base + endpoint, { method: options.method||'GET', headers: h, ...(options.body ? {body:JSON.stringify(options.body)} : {}) });
+  if (!r.ok) throw new Error('Indexer ' + r.status + ': ' + r.statusText);
+  return r.json();
+}
+
+async function searchViaHunterr(store, query, pri) {
+  const d = await indexerRequest(store, '/api/search', { method:'POST', body:{query, primaryIndexer:pri||null} });
+  if (!d.success) throw new Error(d.error||'Search failed');
+  return { results: (d.results||[]).map(r=>({guid:r.id||r.guid,title:r.title,size:r.size||0,seeders:r.seeders||0,leechers:r.leechers||0,indexer:r.indexer,downloadUrl:r.magnetUrl||null,infoUrl:r.infoUrl,publishDate:r.publishDate||null,imdbId:r.imdbId||null,categories:r.category?[r.category]:[],indexerFlags:[]})), indexerStatus:d.indexerStatus||[] };
+}
+
+async function searchViaProwlarr(store, query, searchType) {
+  const cfg = store.get('prowlarr')||{}; const base = cfg.url.replace(/\/$/, '');
+  const h = {'Accept':'application/json'}; if (cfg.apiKey) h['X-Api-Key'] = cfg.apiKey;
+  const ir = await fetch(base+'/api/v1/indexer',{headers:h}); if (!ir.ok) throw new Error('Indexers: '+ir.status);
+  const all = await ir.json(); const ti = all.filter(i=>i.enable&&i.protocol==='torrent');
+  if (!ti.length) throw new Error('No enabled torrent indexers');
+  const leet = ti.find(i=>i.name.toLowerCase().includes('1337x'));
+  const others = ti.filter(i=>!i.name.toLowerCase().includes('1337x'));
+  const pri = leet ? [leet] : ti;
+  const doSearch = async (idxs) => {
+    const ps = idxs.map(async idx => {
+      try { const r = await fetch(base+'/api/v1/search?query='+encodeURIComponent(query)+'&indexerIds='+idx.id+'&type='+(searchType||'search'),{headers:h}); return r.ok ? await r.json() : []; } catch { return []; }
+    });
+    return (await Promise.all(ps)).flat();
+  };
+  let raw = await doSearch(pri);
+  if (!raw.length && others.length) raw = await doSearch(others);
+  const results = raw.map(r => { let dl=r.downloadUrl||r.magnetUrl||null; if(!dl&&r.guid&&r.guid.startsWith('magnet:'))dl=r.guid; return {guid:r.guid,title:r.title,size:r.size,seeders:r.seeders||0,leechers:r.leechers||0,indexer:r.indexer,downloadUrl:dl,infoUrl:r.infoUrl||null,publishDate:r.publishDate,categories:(r.categories||[]).map(x=>typeof x==='object'?x.id:x),indexerFlags:[]}; });
+  results.sort((a,b)=>b.seeders-a.seeders);
+  return { results, indexerStatus:[] };
 }
 
 // ========== 1337x Direct Scraper ==========
@@ -411,17 +460,18 @@ function languageScore(title) {
 function setupProwlarrRoutes(app, store, auth) {
   app.get('/api/prowlarr/test', auth, async (req, res) => {
     try {
-      const data = await prowlarrRequest(store, '/api/v1/system/status');
-      res.json({ success: true, version: data.version });
+      const data = await indexerRequest(store, '/api/indexers');
+      const indexerCount = data.indexers ? data.indexers.length : 0;
+      res.json({ success: true, version: `Hunterr (${indexerCount} indexers)` });
     } catch (e) { res.json({ success: false, error: e.message }); }
   });
 
   app.get('/api/prowlarr/indexers', auth, async (req, res) => {
     try {
-      const data = await prowlarrRequest(store, '/api/v1/indexer');
-      const indexers = data
-        .filter(i => i.enable && i.protocol === 'torrent')
-        .map(i => ({ id: i.id, name: i.name, categories: i.capabilities?.categories || [] }));
+      const data = await indexerRequest(store, '/api/indexers');
+      const indexers = (data.indexers || [])
+        .filter(i => i.enabled !== false)
+        .map(i => ({ id: i.id, name: i.name, categories: i.categories || [] }));
       res.json({ success: true, indexers });
     } catch (e) { res.json({ success: false, error: e.message }); }
   });
@@ -430,65 +480,18 @@ function setupProwlarrRoutes(app, store, auth) {
     try {
       const { query, categories, indexerIds, primaryIndexer } = req.body;
       const cfg = store.get('prowlarr') || {};
-      if (!cfg.url || !cfg.apiKey) throw new Error('Prowlarr not configured');
-      const base = cfg.url.replace(/\/$/, '');
-      const headers = { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' };
-      
-      const idxRes = await fetch(`${base}/api/v1/indexer`, { headers });
-      if (!idxRes.ok) throw new Error(`Failed to get indexers: ${idxRes.status}`);
-      const allIndexers = await idxRes.json();
-      const torrentIndexers = allIndexers.filter(i => i.enable && i.protocol === 'torrent');
-      if (!torrentIndexers.length) throw new Error('No enabled torrent indexers found');
-      
-      // Determine primary/fallback indexers based on setting (default: 1337x first)
-      const primary = (primaryIndexer || cfg.primaryIndexer || '1337x').toLowerCase();
-      const isPrimaryLeet = primary.includes('1337');
-      const primaryGroup = torrentIndexers.filter(i => isPrimaryLeet ? /1337/i.test(i.name) : !/1337/i.test(i.name) && !/nyaa/i.test(i.name));
-      const fallbackGroup = torrentIndexers.filter(i => isPrimaryLeet ? (!/1337/i.test(i.name) && !/nyaa/i.test(i.name)) : /1337/i.test(i.name));
-      console.log(`[search] Primary: ${primary} (${primaryGroup.map(i => i.name).join(', ')}), Fallback: ${fallbackGroup.map(i => i.name).join(', ')}`);
+      if (!cfg.url) throw new Error('Indexer not configured — set the URL in Settings');
 
-      const searchIndexers = async (indexers) => {
-        const searches = indexers.map(async (idx) => {
-          try {
-            const url = `${base}/api/v1/search?query=${encodeURIComponent(query)}&indexerIds=${idx.id}&type=search`;
-            const r = await fetch(url, { headers });
-            if (!r.ok) return { indexer: idx.name, success: false, results: [] };
-            const data = await r.json();
-            return { indexer: idx.name, success: true, results: data };
-          } catch { return { indexer: idx.name, success: false, results: [] }; }
-        });
-        return Promise.all(searches);
-      };
-
-      // Primary indexer first
-      let outcomes = await searchIndexers(primaryGroup);
-      let totalResults = outcomes.reduce((sum, o) => sum + o.results.length, 0);
-      
-      // Fall back to other indexers only if primary returned nothing
-      if (totalResults === 0 && fallbackGroup.length > 0) {
-        console.log(`[search] Primary empty, falling back to: ${fallbackGroup.map(i => i.name).join(', ')}`);
-        const fallbackOutcomes = await searchIndexers(fallbackGroup);
-        outcomes = outcomes.concat(fallbackOutcomes);
+      // Hunterr handles primary/fallback indexer logic internally
+      const backend = await detectBackend(store);
+      let searchResult;
+      if (backend === 'hunterr') {
+        searchResult = await searchViaHunterr(store, query, primaryIndexer || cfg.primaryIndexer);
+      } else {
+        searchResult = await searchViaProwlarr(store, query);
       }
+      const allResults = searchResult.results;
 
-      const indexerStatus = outcomes.map(o => ({ name: o.indexer, success: o.success, count: o.results.length }));
-      const allResults = [];
-      for (const o of outcomes) {
-        for (const r of o.results) {
-          let dlUrl = r.downloadUrl || r.magnetUrl || null;
-          if (!dlUrl && r.guid && r.guid.startsWith('magnet:')) dlUrl = r.guid;
-          allResults.push({
-            guid: r.guid, title: r.title, size: r.size,
-            seeders: r.seeders || 0, leechers: r.leechers || 0,
-            indexer: r.indexer, downloadUrl: dlUrl, infoUrl: r.infoUrl,
-            publishDate: r.publishDate,
-            imdbId: r.imdbId || null,
-            categories: (r.categories || []).map(c => c.id),
-            indexerFlags: r.indexerFlags || []
-          });
-        }
-      }
-      allResults.sort((a, b) => b.seeders - a.seeders);
       // Filter out non-English results for auto-grab
       const englishResults = allResults.filter(r => isLikelyEnglish(r.title));
       const filteredResults = englishResults.length > 0 ? englishResults : allResults;
@@ -498,6 +501,7 @@ function setupProwlarrRoutes(app, store, auth) {
         if (langDiff !== 0) return langDiff;
         return b.seeders - a.seeders;
       });
+      const indexerStatus = searchResult.indexerStatus || [];
       res.json({ success: true, results: filteredResults, indexerStatus });
     } catch (e) { res.json({ success: false, error: e.message }); }
   });
@@ -506,17 +510,14 @@ function setupProwlarrRoutes(app, store, auth) {
     try {
       const { indexerId, category, period } = req.body;
       const cfg = store.get('prowlarr') || {};
-      let indexerName = '';
-      if (cfg.url && cfg.apiKey) {
+
+      // Determine indexer name for direct scraping fallbacks
+      let indexerName = indexerId || '';
+      if (cfg.url) {
         try {
-          const base = cfg.url.replace(/\/$/, '');
-          const headers = { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' };
-          const idxRes = await fetch(`${base}/api/v1/indexer`, { headers });
-          if (idxRes.ok) {
-            const allIdx = await idxRes.json();
-            const idx = allIdx.find(i => i.id === indexerId);
-            if (idx) indexerName = idx.name;
-          }
+          const idxData = await indexerRequest(store, '/api/indexers');
+          const idx = (idxData.indexers || []).find(i => i.id === indexerId);
+          if (idx) indexerName = idx.name || idx.id;
         } catch {}
       }
       
@@ -527,7 +528,30 @@ function setupProwlarrRoutes(app, store, auth) {
         const scraped = await getNyaaPopular(period || 'week');
         return res.json({ success: true, results: scraped });
       }
+
+      // Try Hunterr browse API first
+      if (cfg.url) {
+        try {
+          const type = category === 5000 ? 'tv' : 'movies';
+          const data = await indexerRequest(store, `/api/browse/${encodeURIComponent(indexerId)}?category=${type}&period=${period || 'week'}`);
+          if (data.success && data.results && data.results.length > 0) {
+            const results = data.results.map(r => ({
+              guid: r.id || r.guid, title: r.title, size: r.size || 0,
+              seeders: r.seeders || 0, leechers: r.leechers || 0,
+              indexer: r.indexer || indexerName, downloadUrl: r.magnetUrl || null,
+              infoUrl: r.infoUrl,
+              publishDate: r.publishDate || null, timeStr: r.timeStr || null,
+              imdbId: r.imdbId || null,
+              categories: category ? [category] : [], indexerFlags: []
+            }));
+            return res.json({ success: true, results });
+          }
+        } catch (e) {
+          console.log(`[browse] Hunterr browse failed for ${indexerId}: ${e.message}, trying direct scrape...`);
+        }
+      }
       
+      // Fallback: direct 1337x scraping
       if (is1337x) {
         const type = category === 5000 ? 'tv' : 'movies';
         const scraped = await get1337xPopular(type, period || 'week');
@@ -550,34 +574,8 @@ function setupProwlarrRoutes(app, store, auth) {
         }
         return res.json({ success: true, results });
       }
-      
-      // Fallback: Prowlarr browse
-      if (!cfg.url || !cfg.apiKey) throw new Error('Prowlarr not configured');
-      const base = cfg.url.replace(/\/$/, '');
-      const headers = { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' };
-      const catParam = category ? `&categories=${category}` : '';
-      const url = `${base}/api/v1/search?query=&indexerIds=${indexerId}&type=search${catParam}&limit=500`;
-      const r = await fetch(url, { headers });
-      if (!r.ok) throw new Error(`Prowlarr returned ${r.status}`);
-      const data = await r.json();
-      
-      let results = data.map(r => {
-        let dlUrl = r.downloadUrl || r.magnetUrl || null;
-        if (!dlUrl && r.guid && r.guid.startsWith('magnet:')) dlUrl = r.guid;
-        return { guid: r.guid, title: r.title, size: r.size, seeders: r.seeders || 0, leechers: r.leechers || 0,
-          indexer: r.indexer, downloadUrl: dlUrl, infoUrl: r.infoUrl, publishDate: r.publishDate,
-          imdbId: r.imdbId || null,
-          categories: (r.categories || []).map(c => c.id), indexerFlags: r.indexerFlags || [] };
-      });
 
-      if (period && period !== 'all') {
-        const now = Date.now();
-        const cutoffs = { day: 86400000, week: 604800000, month: 2592000000 };
-        const cutoff = cutoffs[period];
-        if (cutoff) results = results.filter(r => r.publishDate && (now - new Date(r.publishDate).getTime()) <= cutoff);
-      }
-      results.sort((a, b) => b.seeders - a.seeders);
-      res.json({ success: true, results: results.slice(0, 100) });
+      throw new Error('No browse results available');
     } catch (e) { res.json({ success: false, error: e.message }); }
   });
 
@@ -588,117 +586,19 @@ function setupProwlarrRoutes(app, store, auth) {
       if (!infoUrl && !guid && !title) return res.status(400).json({ error: 'infoUrl, guid, or title required' });
 
       const cfg = store.get('prowlarr') || {};
-      const base = cfg.url ? cfg.url.replace(/\/$/, '') : '';
-      const headers = cfg.apiKey ? { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' } : {};
 
-      // Method 1: Search Prowlarr by title and match by guid or closest title
-      if (base && cfg.apiKey && (title || guid)) {
+      // Method 1: Use Hunterr's resolve API
+      if (cfg.url && (guid || title)) {
         try {
-          // Extract a clean search query from the title
-          const searchQuery = (title || '').replace(/[\.\-\_\(\)]/g, ' ').replace(/\b(1080p|720p|2160p|x264|x265|HEVC|WEB-DL|WEBRip|BluRay|BRRip|HDRip|NeoNoir|BONE|DDP|AAC|AC3|FLAC|5\.1|10bit|10Bit|REMUX)\b/gi, '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 5).join(' ');
-          
-          if (searchQuery.length >= 3) {
-            const searchUrl = `${base}/api/v1/search?query=${encodeURIComponent(searchQuery)}&type=search&limit=50`;
-            const sRes = await fetch(searchUrl, { headers, signal: AbortSignal.timeout(15000) });
-            if (sRes.ok) {
-              const results = await sRes.json();
-              // Try exact guid match first
-              let match = guid ? results.find(r => r.guid === guid) : null;
-              // Then try title match
-              if (!match && title) {
-                match = results.find(r => r.title === title);
-              }
-              // Then try fuzzy title match
-              if (!match && title) {
-                const lowerTitle = title.toLowerCase();
-                match = results.find(r => r.title && r.title.toLowerCase() === lowerTitle);
-              }
-              if (match) {
-                // Only return if it's an actual magnet — Prowlarr proxy URLs expire (410)
-                const magnet = match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
-                if (magnet) return res.json({ success: true, downloadUrl: magnet });
-                // If it's a 1337x result, scrape the magnet directly
-                if ((match.indexer || '').toLowerCase().includes('1337x') && match.infoUrl) {
-                  const infoPath = new URL(match.infoUrl).pathname;
-                  const { magnet: scrapedMagnet } = await scrape1337xMagnet(infoPath);
-                  if (scrapedMagnet) return res.json({ success: true, downloadUrl: scrapedMagnet });
-                }
-                // Method 3: For non-1337x indexers (ext.to etc), the proxy URL is fresh — fetch it
-                // immediately and extract the magnet/torrent before it expires
-                if (match.downloadUrl) {
-                  try {
-                    console.log(`[resolve-magnet] Fetching fresh proxy URL from ${match.indexer}...`);
-                    const proxyHeaders = cfg.apiKey ? { 'X-Api-Key': cfg.apiKey } : {};
-                    const proxyResp = await fetch(match.downloadUrl, { headers: proxyHeaders, redirect: 'follow', signal: AbortSignal.timeout(30000) });
-                    if (proxyResp.ok) {
-                      const contentType = proxyResp.headers.get('content-type') || '';
-                      const finalUrl = proxyResp.url || match.downloadUrl;
-                      if (finalUrl.startsWith('magnet:')) {
-                        console.log(`[resolve-magnet] Proxy redirected to magnet`);
-                        return res.json({ success: true, downloadUrl: finalUrl });
-                      }
-                      if (contentType.includes('text/plain') || contentType.includes('text/html')) {
-                        const text = await proxyResp.text();
-                        if (text.trim().startsWith('magnet:')) {
-                          console.log(`[resolve-magnet] Proxy returned magnet in body`);
-                          return res.json({ success: true, downloadUrl: text.trim() });
-                        }
-                      }
-                      if (contentType.includes('bittorrent')) {
-                        // Got a valid torrent file — return the fresh proxy URL for immediate use
-                        console.log(`[resolve-magnet] Proxy returned torrent file, returning fresh URL`);
-                        return res.json({ success: true, downloadUrl: match.downloadUrl });
-                      }
-                    } else {
-                      console.log(`[resolve-magnet] Proxy fetch failed: ${proxyResp.status} — indexer ${match.indexer} download broken`);
-                    }
-                  } catch (proxyErr) {
-                    console.log(`[resolve-magnet] Proxy fetch error: ${proxyErr.message}`);
-                  }
-                  // Proxy URL broken (410 etc) — try to find the same content on a working indexer
-                  // Look for any 1337x result in the search results and scrape its magnet
-                  console.log(`[resolve-magnet] Falling back to 1337x scrape for any matching result...`);
-                  const leet1337 = results.find(r => (r.indexer || '').toLowerCase().includes('1337x') && r.infoUrl);
-                  if (leet1337) {
-                    try {
-                      const infoPath = new URL(leet1337.infoUrl).pathname;
-                      const { magnet: scrapedMagnet } = await scrape1337xMagnet(infoPath);
-                      if (scrapedMagnet) {
-                        console.log(`[resolve-magnet] Got magnet from 1337x fallback: ${leet1337.title}`);
-                        return res.json({ success: true, downloadUrl: scrapedMagnet, fallbackTitle: leet1337.title });
-                      }
-                    } catch (e) {
-                      console.log(`[resolve-magnet] 1337x fallback scrape failed: ${e.message}`);
-                    }
-                  }
-                  // Last resort: try fetching from a working 1337x proxy URL
-                  const leet1337dl = results.find(r => (r.indexer || '').toLowerCase().includes('1337x') && r.downloadUrl);
-                  if (leet1337dl) {
-                    try {
-                      console.log(`[resolve-magnet] Trying 1337x proxy URL for: ${leet1337dl.title}`);
-                      const proxyHeaders2 = cfg.apiKey ? { 'X-Api-Key': cfg.apiKey } : {};
-                      const proxyResp2 = await fetch(leet1337dl.downloadUrl, { headers: proxyHeaders2, redirect: 'follow', signal: AbortSignal.timeout(15000) });
-                      if (proxyResp2.ok) {
-                        console.log(`[resolve-magnet] 1337x proxy works, returning URL`);
-                        return res.json({ success: true, downloadUrl: leet1337dl.downloadUrl, fallbackTitle: leet1337dl.title });
-                      }
-                    } catch (e) {
-                      console.log(`[resolve-magnet] 1337x proxy failed: ${e.message}`);
-                    }
-                  }
-                }
-              }
-              // No magnet found via search — try all 1337x results
-              const leet = results.find(r => (r.indexer || '').toLowerCase().includes('1337x') && r.infoUrl);
-              if (leet) {
-                const infoPath = new URL(leet.infoUrl).pathname;
-                const { magnet: scrapedMagnet } = await scrape1337xMagnet(infoPath);
-                if (scrapedMagnet) return res.json({ success: true, downloadUrl: scrapedMagnet });
-              }
-            }
+          const data = await indexerRequest(store, '/api/resolve', {
+            method: 'POST',
+            body: { indexerId: null, dataId: guid, title, guid, infoUrl }
+          });
+          if (data.success && data.magnetUrl) {
+            return res.json({ success: true, downloadUrl: data.magnetUrl });
           }
         } catch (e) {
-          console.log('[resolve-magnet] Prowlarr search failed:', e.message);
+          console.log('[resolve-magnet] Hunterr resolve failed:', e.message);
         }
       }
 
