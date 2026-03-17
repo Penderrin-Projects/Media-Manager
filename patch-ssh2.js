@@ -6,7 +6,7 @@
  * fast connections because the SSH flow-control window stalls waiting for
  * adjustment ACKs. Native clients like FileZilla use 64MB+ windows.
  *
- * This postinstall script patches those constants to 16MB / 256KB,
+ * This postinstall script patches those constants to 8MB / 64KB,
  * which is enough to saturate a typical seedbox link.
  */
 
@@ -25,25 +25,34 @@ let src = fs.readFileSync(channelPath, 'utf8');
 const patches = [
   {
     name: 'PACKET_SIZE',
-    from: "const PACKET_SIZE = 32 * 1024;",
-    to:   "const PACKET_SIZE = 256 * 1024; // patched: was 32KB",
+    from: ["const PACKET_SIZE = 32 * 1024;", "const PACKET_SIZE = 256 * 1024;"],
+    to:   "const PACKET_SIZE = 64 * 1024; // patched: 64KB (seedbox-safe max)",
   },
   {
     name: 'MAX_WINDOW',
-    from: "const MAX_WINDOW = 2 * 1024 * 1024;",
-    to:   "const MAX_WINDOW = 16 * 1024 * 1024; // patched: was 2MB",
+    from: ["const MAX_WINDOW = 2 * 1024 * 1024;", "const MAX_WINDOW = 16 * 1024 * 1024;"],
+    to:   "const MAX_WINDOW = 8 * 1024 * 1024; // patched: 8MB (optimal for WAN)",
   },
 ];
 
 let applied = 0;
 for (const p of patches) {
-  if (src.includes(p.from)) {
-    src = src.replace(p.from, p.to);
-    applied++;
-    console.log(`[patch-ssh2] Patched ${p.name}`);
-  } else if (src.includes(p.to)) {
+  const froms = Array.isArray(p.from) ? p.from : [p.from];
+  if (src.includes(p.to)) {
     console.log(`[patch-ssh2] ${p.name} already patched`);
-  } else {
+    continue;
+  }
+  let found = false;
+  for (const f of froms) {
+    if (src.includes(f)) {
+      src = src.replace(f, p.to);
+      applied++;
+      found = true;
+      console.log(`[patch-ssh2] Patched ${p.name}`);
+      break;
+    }
+  }
+  if (!found) {
     console.log(`[patch-ssh2] WARNING: Could not find ${p.name} — ssh2 version may have changed`);
   }
 }
