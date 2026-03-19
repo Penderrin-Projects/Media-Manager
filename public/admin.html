@@ -482,6 +482,10 @@
           <mm-input id="serverApiKey" label="API Key (optional)" placeholder="Leave blank for open access"></mm-input>
         </div>
         <div class="field-hint">Port default: 9876. API key protects the API — leave blank if only accessible on your local network.</div>
+        <div class="field-row" style="margin-top: 12px;">
+          <mm-input id="serverPin" label="Companion PIN" placeholder="e.g. 1234"></mm-input>
+        </div>
+        <div class="field-hint">PIN for external access to the Companion app (via Cloudflare). Local WiFi users bypass this. Leave blank for open access.</div>
       </div>
     </mm-card>
   </div>
@@ -706,6 +710,7 @@
     'paths.staging': 'pathStaging',
     'server.port': 'serverPort',
     'server.apiKey': 'serverApiKey',
+    'server.pin': 'serverPin',
     'sms.smtpUser': 'smsSmtpUser',
     'sms.smtpPass': 'smsSmtpPass',
     'directToPC.localPath': 'directToPCPath',
