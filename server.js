@@ -441,11 +441,6 @@ app.use('/companion/api', plexCompanionRoutes(companionConfig, companionAuth));
 // Companion health
 app.get('/companion/api/health', (req, res) => res.json({ status: 'ok', mode: 'integrated' }));
 
-// Root redirect — sends companion.tabormedia.net/ to /companion
-app.get('/', (req, res) => {
-  res.redirect('/companion');
-});
-
 // PWA fallback — any /companion/* route serves index.html
 app.get('/companion/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'companion', 'index.html'));
