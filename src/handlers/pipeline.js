@@ -881,6 +881,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
         renameDb: opts.renameDb || '', episodeOverrides: {},
         doMove: opts.doMove !== false, moveType: opts.moveType || 'movies',
         directToPC: opts.directToPC || false,
+        pcLocalPath: opts.pcLocalPath || store.get('directToPC.localPath') || '',
       }
     };
     if (opts.torrentFileNames && opts.torrentFileNames.length > 0 && job.options.doRename) {

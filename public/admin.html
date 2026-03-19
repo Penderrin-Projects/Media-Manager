@@ -228,6 +228,18 @@
   </div>
 </div>
 
+<!-- DIRECT TO PC -->
+<div class="section">
+  <div class="section-title">Direct to PC</div>
+  <div class="field-row">
+    <div class="field" style="flex:1">
+      <label>Download Folder (on your PC)</label>
+      <input id="directToPCPath" placeholder="C:\Users\you\Desktop\Torrents">
+      <div class="field-hint">Where files go when you use "To My PC". Uses the PC path format (e.g. C:\Users\tabor\Desktop\Torrents).</div>
+    </div>
+  </div>
+</div>
+
 <!-- SERVER -->
 <div class="section">
   <div class="section-title">Server</div>
@@ -304,6 +316,7 @@ const fieldMap = {
   'paths.staging': 'pathStaging',
   'server.port': 'serverPort', 'server.apiKey': 'serverApiKey',
   'sms.smtpUser': 'smsSmtpUser', 'sms.smtpPass': 'smsSmtpPass',
+  'directToPC.localPath': 'directToPCPath',
 };
 
 function getNestedValue(obj, path) {
