@@ -3,7 +3,7 @@
 // Refactored: scraper logic extracted into scraper-1337x.js + scraper-nyaa.js
 // ═══════════════════════════════════════════════════════════════════
 
-const { isLikelyEnglish } = require('media-manager-shared/src/language');
+const { isLikelyEnglish } = require('media-manager-shared');
 const { scrape1337xMagnet, get1337xPopular } = require('./scraper-1337x');
 const { getNyaaPopular } = require('./scraper-nyaa');
 

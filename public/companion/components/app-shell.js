@@ -108,6 +108,43 @@ class AppShell extends HTMLElement {
     window.dispatchEvent(new CustomEvent('mm-indexer-changed', { detail: { id } }));
   }
 
+  // ── WebSocket — real-time pipeline updates ─────────────────
+  static _ws = null;
+  static _wsRetryTimer = null;
+
+  static connectWebSocket() {
+    if (AppShell._ws && AppShell._ws.readyState <= 1) return; // already open/connecting
+    try {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const pin = encodeURIComponent(AppShell.pin || '');
+      AppShell._ws = new WebSocket(`${proto}//${location.host}/ws?pin=${pin}`);
+
+      AppShell._ws.onopen = () => {
+        console.log('[ws] Connected');
+        if (AppShell._wsRetryTimer) { clearTimeout(AppShell._wsRetryTimer); AppShell._wsRetryTimer = null; }
+      };
+
+      AppShell._ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          window.dispatchEvent(new CustomEvent('mm-ws-message', { detail: msg }));
+        } catch {}
+      };
+
+      AppShell._ws.onclose = () => {
+        console.log('[ws] Disconnected, retrying in 5s');
+        AppShell._ws = null;
+        AppShell._wsRetryTimer = setTimeout(() => AppShell.connectWebSocket(), 5000);
+      };
+
+      AppShell._ws.onerror = () => {
+        AppShell._ws?.close();
+      };
+    } catch (e) {
+      console.warn('[ws] Connect failed:', e);
+    }
+  }
+
   // ── Auth check ──────────────────────────────────────────────
   async _checkAuth() {
     const data = await AppShell.api('/companion/api/config');
@@ -125,6 +162,7 @@ class AppShell extends HTMLElement {
 
   async _initAfterAuth() {
     AppShell.initPush();
+    AppShell.connectWebSocket();
   }
 
   _submitPin() {

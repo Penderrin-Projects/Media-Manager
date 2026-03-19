@@ -5,7 +5,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const { cleanForSearch: sharedCleanForSearch } = require('media-manager-shared/src/utils');
+const { cleanForSearch: sharedCleanForSearch } = require('media-manager-shared');
 
 const VIDEO_EXTS = new Set(['.mkv','.mp4','.avi','.mov','.wmv','.flv','.m4v','.webm','.ts','.m2ts']);
 

@@ -6,8 +6,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const { VIDEO_EXTENSIONS, SUBTITLE_EXTENSIONS } = require('media-manager-shared/src/constants');
-const { isForeignRelease, hasEnglishFilenameMarker, hasForeignFilenameMarker } = require('media-manager-shared/src/language');
+const { VIDEO_EXTENSIONS, SUBTITLE_EXTENSIONS, isForeignRelease, hasEnglishFilenameMarker, hasForeignFilenameMarker } = require('media-manager-shared');
 
 function isVid(f) { return VIDEO_EXTENSIONS.includes(path.extname(f).toLowerCase()); }
 function isSub(f) { return SUBTITLE_EXTENSIONS.includes(path.extname(f).toLowerCase()); }

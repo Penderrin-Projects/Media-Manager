@@ -3,7 +3,7 @@
 // Extracted from prowlarr.js
 // ═══════════════════════════════════════════════════════════════════
 
-const { isLikelyEnglish } = require('media-manager-shared/src/language');
+const { isLikelyEnglish } = require('media-manager-shared');
 
 function parseNyaaSize(str) {
   if (!str) return 0;

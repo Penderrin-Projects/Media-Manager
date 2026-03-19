@@ -3,7 +3,7 @@
 // Extracted from prowlarr.js
 // ═══════════════════════════════════════════════════════════════════
 
-const { isLikelyEnglish } = require('media-manager-shared/src/language');
+const { isLikelyEnglish } = require('media-manager-shared');
 
 const LEET_BASES = ['https://1337x.to', 'https://1337xx.to', 'https://1337x.st'];
 

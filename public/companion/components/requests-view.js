@@ -6,9 +6,12 @@ class RequestsView extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._interval = null;
+    this._uiInterval = null;       // 1s UI countdown
+    this._fallbackInterval = null;  // 30s fallback poll
     this._lastData = null;
     this._lastFetch = 0;
+    this._fetchPending = false;
+    this._wsHandler = (e) => this._onWsMessage(e.detail);
   }
 
   connectedCallback() {
@@ -16,42 +19,68 @@ class RequestsView extends HTMLElement {
   }
 
   onActivated() {
-    this._startPolling();
+    this._start();
   }
 
   onDeactivated() {
-    this._stopPolling();
+    this._stop();
   }
 
-  _startPolling() {
-    if (this._interval) return;
-    this._loadRequests();
-    this._interval = setInterval(() => this._loadRequests(), 1000);
-  }
+  _start() {
+    // Fetch immediately on activation
+    this._fetchFromServer();
 
-  _stopPolling() {
-    if (this._interval) { clearInterval(this._interval); this._interval = null; }
-  }
-
-  async _loadRequests() {
-    const container = this.shadowRoot.querySelector('#requestsList');
-    const now = Date.now();
-
-    // Only fetch from server every 5 seconds, countdown locally between
-    if (now - this._lastFetch >= 5000 || !this._lastData) {
-      try {
-        const data = await AppShell.api('/companion/api/requests');
-        if (data.success) {
-          this._lastData = data;
-          this._lastFetch = now;
-        }
-      } catch (e) {
-        if (!this._lastData) {
-          container.innerHTML = '<div class="empty-state"><mm-icon name="alert-triangle" size="40"></mm-icon><p>Could not load requests</p></div>';
-          return;
-        }
-      }
+    // UI refresh every 1s (local ETA countdown only, no server calls)
+    if (!this._uiInterval) {
+      this._uiInterval = setInterval(() => this._renderData(), 1000);
     }
+
+    // Fallback server poll every 30s in case WS is down
+    if (!this._fallbackInterval) {
+      this._fallbackInterval = setInterval(() => this._fetchFromServer(), 30000);
+    }
+
+    // Listen for WebSocket pipeline updates
+    window.addEventListener('mm-ws-message', this._wsHandler);
+  }
+
+  _stop() {
+    if (this._uiInterval) { clearInterval(this._uiInterval); this._uiInterval = null; }
+    if (this._fallbackInterval) { clearInterval(this._fallbackInterval); this._fallbackInterval = null; }
+    window.removeEventListener('mm-ws-message', this._wsHandler);
+  }
+
+  _onWsMessage(msg) {
+    if (msg.type === 'pipeline:update') {
+      // Pipeline state changed — fetch enriched data from server
+      this._fetchFromServer();
+    }
+  }
+
+  async _fetchFromServer() {
+    if (this._fetchPending) return;
+    this._fetchPending = true;
+    try {
+      const data = await AppShell.api('/companion/api/requests');
+      if (data.success) {
+        this._lastData = data;
+        this._lastFetch = Date.now();
+        this._renderData();
+      }
+    } catch (e) {
+      const container = this.shadowRoot.querySelector('#requestsList');
+      if (!this._lastData && container) {
+        container.innerHTML = '<div class="empty-state"><mm-icon name="alert-triangle" size="40"></mm-icon><p>Could not load requests</p></div>';
+      }
+    } finally {
+      this._fetchPending = false;
+    }
+  }
+
+  _renderData() {
+    const container = this.shadowRoot.querySelector('#requestsList');
+    if (!container) return;
+    const now = Date.now();
 
     const data = this._lastData;
     if (!data || !data.success || !data.requests || !data.requests.length) {

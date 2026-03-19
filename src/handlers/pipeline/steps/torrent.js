@@ -5,7 +5,7 @@
 
 const path = require('path');
 const { formatBytes: fmtB, formatDuration: fmtSec } = require('../../../utils');
-const { normalizeName } = require('media-manager-shared/src/utils');
+const { normalizeName } = require('media-manager-shared');
 
 /**
  * Wait for a torrent to finish downloading in qBittorrent.

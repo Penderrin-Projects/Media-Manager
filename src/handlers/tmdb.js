@@ -3,7 +3,7 @@
 // Poster lookup, rich search, IMDB lookup, TV show/season details
 // ═══════════════════════════════════════════════════════════════════
 
-const { LRUCache } = require('media-manager-shared/src/utils');
+const { LRUCache } = require('media-manager-shared');
 const posterCache = new LRUCache(500, 3600000); // 500 entries, 1hr TTL
 const searchCache = new LRUCache(500, 3600000);
 

@@ -164,13 +164,20 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 const wsClients = new Set();
 wss.on('connection', (ws, req) => {
-  // Check auth for WebSocket too
+  const url = new URL(req.url, `http://${req.headers.host}`);
   const apiKey = config.server.apiKey;
-  if (apiKey) {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const provided = url.searchParams.get('apiKey');
-    if (provided !== apiKey) { ws.close(4001, 'Unauthorized'); return; }
+  const pin = config.server.pin;
+
+  // Accept either API key or PIN for auth
+  const providedKey = url.searchParams.get('apiKey');
+  const providedPin = url.searchParams.get('pin');
+
+  if (apiKey || pin) {
+    const keyOk = apiKey && providedKey === apiKey;
+    const pinOk = pin && providedPin === pin;
+    if (!keyOk && !pinOk) { ws.close(4001, 'Unauthorized'); return; }
   }
+
   wsClients.add(ws);
   log('info', 'ws', `Client connected (${wsClients.size} total)`);
   ws.on('close', () => { wsClients.delete(ws); });
@@ -428,7 +435,7 @@ const plexCompanionRoutes = require('./src/companion/routes/plex');
 app.use('/companion/api', searchRoutes(companionConfig, companionAuth));
 app.use('/companion/api', mediaRoutes(companionConfig, companionAuth));
 app.use('/companion/api', topRoutes(companionConfig, companionAuth));
-app.use('/companion/api', configRoutes(companionConfig, companionAuth));
+app.use('/companion/api', configRoutes(companionConfig, companionAuth, { saveConfig, vapidKeys }));
 app.use('/companion/api', plexCompanionRoutes(companionConfig, companionAuth));
 
 // Companion health

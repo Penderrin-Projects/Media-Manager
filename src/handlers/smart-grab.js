@@ -3,8 +3,7 @@
 // Moved from Companion to centralize torrent intelligence on the server
 // ═══════════════════════════════════════════════════════════════════
 
-const { scoreTorrent, selectBestTorrent } = require('media-manager-shared/src/scoring');
-const { isForeignRelease } = require('media-manager-shared/src/language');
+const { scoreTorrent, selectBestTorrent, isForeignRelease } = require('media-manager-shared');
 
 async function prowlarrSearch(store, query, searchType = 'search', primaryIndexer, exclusiveIndexer) {
   // Route through MM's own /api/prowlarr/search — handles Hunterr + Prowlarr auto-detection
@@ -212,7 +211,7 @@ function setupSmartGrabRoutes(app, store, auth) {
       let grabUrl = (best.magnetUrl && best.magnetUrl.startsWith('magnet:')) ? best.magnetUrl : best.downloadUrl;
       if (!grabUrl || !grabUrl.startsWith('magnet:')) {
         try {
-          const port = parseInt(process.env.PORT) || 9876;
+          const port = store.get('server.port') || parseInt(process.env.PORT) || 9876;
           const resolveRes = await fetch('http://127.0.0.1:' + port + '/api/prowlarr/resolve-magnet', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -231,7 +230,7 @@ function setupSmartGrabRoutes(app, store, auth) {
       const moveType = contentType === 'tv' ? 'tv' : 'movies';
 
       // Internal call to our own /auto-grab endpoint
-      const port = parseInt(process.env.PORT) || 9876;
+      const port = store.get('server.port') || parseInt(process.env.PORT) || 9876;
       const grabRes = await fetch(`http://127.0.0.1:${port}/auto-grab`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
