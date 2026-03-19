@@ -1,4 +1,4 @@
-const CACHE = 'media-companion-v10';
+const CACHE = 'media-companion-v11';
 const ASSETS = ['/companion/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -17,8 +17,8 @@ self.addEventListener('fetch', e => {
   // Never cache API calls
   if (e.request.url.includes('/companion/api/')) return;
 
-  // Network-first for HTML pages — always get latest
-  if (e.request.mode === 'navigate' || e.request.url.endsWith('.html') || e.request.url.endsWith('/')) {
+  // Network-first for HTML and JS — always get latest app code
+  if (e.request.mode === 'navigate' || e.request.url.endsWith('.html') || e.request.url.endsWith('.js') || e.request.url.endsWith('/')) {
     e.respondWith(
       fetch(e.request).then(res => {
         const clone = res.clone();
@@ -29,7 +29,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for other static assets (icons, manifest)
+  // Cache-first for other static assets (icons, manifest, CSS)
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request))
   );
