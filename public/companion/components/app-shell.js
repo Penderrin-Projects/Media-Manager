@@ -400,7 +400,6 @@ class AppShell extends HTMLElement {
     return `
       :host {
         display: block;
-        height: 100dvh;
         overflow: hidden;
         background: var(--mm-bg-base, #08090d);
         color: var(--mm-text-primary, #e2e4ed);
@@ -485,7 +484,8 @@ class AppShell extends HTMLElement {
       /* ── App Container ───────────────────────────────────── */
       .app-container {
         display: flex; flex-direction: column;
-        height: 100dvh; overflow: hidden;
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        overflow: hidden;
       }
 
       /* ── Header ──────────────────────────────────────────── */
