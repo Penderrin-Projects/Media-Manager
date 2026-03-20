@@ -13,13 +13,18 @@ class AppShell extends HTMLElement {
   }
 
   connectedCallback() {
-    // Set --app-height from actual visible area (bulletproof on iOS PWA)
+    // Use visualViewport (most accurate on iOS) to always fit visible area
     const setHeight = () => {
-      document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty('--app-height', h + 'px');
     };
     setHeight();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', setHeight);
+      window.visualViewport.addEventListener('scroll', setHeight);
+    }
     window.addEventListener('resize', setHeight);
-    window.addEventListener('orientationchange', () => setTimeout(setHeight, 100));
+    window.addEventListener('orientationchange', () => setTimeout(setHeight, 150));
 
     this._render();
     this._checkAuth();
