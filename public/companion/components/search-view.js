@@ -45,9 +45,7 @@ class SearchView extends HTMLElement {
 
         <!-- Results -->
         <div class="results-scroll" id="resultsScroll">
-          <div id="searchResults" class="results-container">
-            <div class="trending-loading"><mm-spinner size="24"></mm-spinner></div>
-          </div>
+          <div id="searchResults" class="results-container"></div>
         </div>
       </div>
 
@@ -56,7 +54,7 @@ class SearchView extends HTMLElement {
       <!-- Detail sheet overlay -->
       <div id="detailOverlay"></div>
     `;
-    this._loadTrending();
+    this._showEmpty();
   }
 
   _setupListeners() {
@@ -99,101 +97,12 @@ class SearchView extends HTMLElement {
 
   _showEmpty() {
     this._results = [];
-    this._showTrending();
-  }
-
-  _showTrending() {
-    if (this._trendingData) {
-      this._renderTrending(this._trendingData);
-    } else {
-      this._loadTrending();
-    }
-  }
-
-  async _loadTrending() {
-    const container = this.shadowRoot.querySelector('#searchResults');
-    try {
-      const data = await AppShell.api('/companion/api/trending');
-      if (data.success) {
-        this._trendingData = data;
-        this._renderTrending(data);
-      } else {
-        this._renderFallbackHome();
-      }
-    } catch {
-      this._renderFallbackHome();
-    }
-  }
-
-  _renderFallbackHome() {
     const container = this.shadowRoot.querySelector('#searchResults');
     container.innerHTML = `
-      <div class="home-hero">
-        <div class="hero-icon">
-          <svg viewBox="0 0 512 512" width="48" height="48">
-            <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="24"/>
-            <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="24"/>
-            <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
-          </svg>
-        </div>
-        <p class="hero-title">What do you want to watch?</p>
-        <p class="hero-sub">Search for movies and TV shows to add to your library</p>
+      <div class="home-idle">
+        <img class="idle-gif" src="https://images.steamusercontent.com/ugc/854976916434675605/0A7FF9FDC45305AB9F1B4F51DCAC315274B28F96/?imw=5000&imh=5000&ima=fit&impolicy=Letterbox&imcolor=%23000000&letterbox=false" alt="" />
       </div>
     `;
-  }
-
-  _renderTrending(data) {
-    const container = this.shadowRoot.querySelector('#searchResults');
-    const esc = AppShell.escHtml;
-
-    const makeRow = (items) => items.map((r, i) => `
-      <div class="trend-card" data-trend-idx="${i}" data-trend-type="${r.type}" data-trend-id="${r.id}">
-        ${r.poster
-          ? `<img class="trend-poster" src="${r.poster}" alt="${esc(r.title)}" loading="lazy">`
-          : `<div class="trend-poster-ph"><mm-icon name="film" size="24"></mm-icon></div>`
-        }
-        <div class="trend-info">
-          <div class="trend-title">${esc(r.title)}</div>
-          <div class="trend-meta">
-            ${r.year ? `<span>${r.year}</span>` : ''}
-            ${r.rating && r.rating !== '0.0' ? `<span class="trend-rating">★ ${r.rating}</span>` : ''}
-          </div>
-        </div>
-      </div>
-    `).join('');
-
-    container.innerHTML = `
-      <div class="trending-home">
-        ${data.movies && data.movies.length ? `
-          <div class="trend-section">
-            <h3 class="trend-heading"><mm-icon name="trending-up" size="16"></mm-icon> Trending Movies</h3>
-            <div class="trend-scroll">${makeRow(data.movies)}</div>
-          </div>
-        ` : ''}
-        ${data.tv && data.tv.length ? `
-          <div class="trend-section">
-            <h3 class="trend-heading"><mm-icon name="tv" size="16"></mm-icon> Trending TV Shows</h3>
-            <div class="trend-scroll">${makeRow(data.tv)}</div>
-          </div>
-        ` : ''}
-      </div>
-    `;
-
-    // Store trending items for click handling
-    this._trendingItems = [...(data.movies || []), ...(data.tv || [])];
-
-    // Click handler for trending cards
-    container.querySelectorAll('.trend-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const id = parseInt(card.dataset.trendId);
-        const type = card.dataset.trendType;
-        const item = this._trendingItems.find(t => t.id === id && t.type === type);
-        if (item) {
-          this._results = [item];
-          this._showDetailSheet(0);
-        }
-      });
-    });
   }
 
   async _doSearch(query) {
@@ -703,74 +612,16 @@ class SearchView extends HTMLElement {
       }
       .search-clear.visible { display: flex; }
 
-      /* ── Trending Home ───────────────────────────────────── */
-      .trending-home { padding-bottom: 20px; }
-      .trending-loading { display: flex; justify-content: center; padding: 60px; }
-
-      .trend-section { margin-bottom: 24px; }
-      .trend-heading {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 15px; font-weight: 700; margin-bottom: 12px;
-        color: var(--mm-text-primary, #e2e4ed);
-        letter-spacing: -0.2px;
-      }
-      .trend-heading mm-icon { color: var(--mm-accent, #6c8cff); }
-
-      .trend-scroll {
-        display: flex; gap: 10px;
-        overflow-x: auto; -webkit-overflow-scrolling: touch;
-        padding-bottom: 4px; scroll-snap-type: x proximity;
-      }
-      .trend-scroll::-webkit-scrollbar { height: 0; }
-
-      .trend-card {
-        flex: 0 0 120px; cursor: pointer;
-        border-radius: 10px; overflow: hidden;
-        background: var(--mm-bg-surface, #111318);
-        border: 1px solid var(--mm-border, rgba(255,255,255,0.08));
-        transition: transform 0.15s, box-shadow 0.15s;
-        scroll-snap-align: start;
-      }
-      .trend-card:active { transform: scale(0.96); }
-      .trend-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
-
-      .trend-poster {
-        width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block;
-        background: var(--mm-bg-elevated, #1a1c23);
-      }
-      .trend-poster-ph {
-        width: 100%; aspect-ratio: 2/3;
+      /* ── Idle state (gif) ────────────────────────────────── */
+      .home-idle {
         display: flex; align-items: center; justify-content: center;
-        background: var(--mm-bg-elevated, #1a1c23);
-        color: var(--mm-text-muted, rgba(255,255,255,0.38));
+        height: 100%; padding: 20px;
       }
-      .trend-info { padding: 8px 8px 10px; }
-      .trend-title {
-        font-size: 11px; font-weight: 600; line-height: 1.3;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .trend-meta {
-        display: flex; align-items: center; gap: 6px; margin-top: 3px;
-        font-size: 10px; color: var(--mm-text-secondary, rgba(255,255,255,0.6));
-      }
-      .trend-rating { color: var(--mm-warning, #fbbf24); font-weight: 700; }
-
-      .home-hero {
-        text-align: center; padding: 80px 20px 40px;
-        display: flex; flex-direction: column; align-items: center; gap: 12px;
-      }
-      .hero-icon {
-        width: 80px; height: 80px; border-radius: 20px;
-        background: var(--mm-accent-subtle, rgba(108,140,255,0.12));
-        display: flex; align-items: center; justify-content: center;
-        margin-bottom: 8px;
-      }
-      .hero-title {
-        font-size: 18px; font-weight: 700; color: var(--mm-text-primary, #e2e4ed);
-      }
-      .hero-sub {
-        font-size: 13px; color: var(--mm-text-secondary, rgba(255,255,255,0.6));
-        max-width: 260px;
+      .idle-gif {
+        max-width: 280px; width: 80%;
+        opacity: 0.5;
+        mix-blend-mode: lighten;
+        pointer-events: none;
       }
 
       /* ── Results Scroll ──────────────────────────────────── */

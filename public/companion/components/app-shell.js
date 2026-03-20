@@ -248,15 +248,7 @@ class AppShell extends HTMLElement {
       <style>${AppShell._shellStyles()}</style>
       <div class="loading-screen">
         <div class="loading-logo">
-          <svg viewBox="0 0 512 512" width="32" height="32">
-            <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
-            <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
-            <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
-            <path d="M256 64 L220 112 L292 112 Z" fill="var(--mm-accent, #6c8cff)"/>
-            <path d="M256 448 L220 400 L292 400 Z" fill="var(--mm-accent, #6c8cff)"/>
-            <path d="M64 256 L112 220 L112 292 Z" fill="var(--mm-accent, #6c8cff)"/>
-            <path d="M448 256 L400 220 L400 292 Z" fill="var(--mm-accent, #6c8cff)"/>
-          </svg>
+          <img src="/companion/app-icon.png" alt="" width="48" height="48" style="object-fit:contain">
         </div>
         <div class="loading-text">Media Companion</div>
       </div>
@@ -269,15 +261,7 @@ class AppShell extends HTMLElement {
       <div class="pin-screen">
         <div class="pin-card">
           <div class="pin-icon">
-            <svg viewBox="0 0 512 512" width="40" height="40">
-              <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
-              <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
-              <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M256 64 L220 112 L292 112 Z" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M256 448 L220 400 L292 400 Z" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M64 256 L112 220 L112 292 Z" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M448 256 L400 220 L400 292 Z" fill="var(--mm-accent, #6c8cff)"/>
-            </svg>
+            <img src="/companion/app-icon.png" alt="" width="56" height="56" style="object-fit:contain">
           </div>
           <h2 class="pin-title">Media Companion</h2>
           <p class="pin-subtitle">Enter your PIN to continue</p>
@@ -312,15 +296,7 @@ class AppShell extends HTMLElement {
         <!-- Header -->
         <header class="app-header">
           <div class="header-logo">
-            <svg viewBox="0 0 512 512" width="22" height="22">
-              <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
-              <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
-              <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M256 64 L220 112 L292 112 Z" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M256 448 L220 400 L292 400 Z" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M64 256 L112 220 L112 292 Z" fill="var(--mm-accent, #6c8cff)"/>
-              <path d="M448 256 L400 220 L400 292 Z" fill="var(--mm-accent, #6c8cff)"/>
-            </svg>
+            <img src="/companion/app-icon.png" alt="" width="28" height="28" style="object-fit:contain">
           </div>
           <h1 class="header-title">Media Companion</h1>
           <div class="header-controls" id="headerControls">
