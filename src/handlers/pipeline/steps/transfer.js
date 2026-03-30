@@ -27,7 +27,7 @@ async function stepTransfer(job, store, broadcast, helpers) {
   if (!sp) throw new Error('Staging not configured');
   // Each job gets its own staging subfolder to avoid conflicts
   const jobStaging = path.join(sp, `job-${job.id}`);
-  if (!fs.existsSync(jobStaging)) fs.mkdirSync(jobStaging, { recursive: true });
+  if (!fs.existsSync(jobStaging)) fs.mkdirSync(jobStaging, { recursive: true, mode: 0o777 });
   job.options.stagingPath = jobStaging;
 
   // First connection: collect file list
@@ -51,7 +51,7 @@ async function stepTransfer(job, store, broadcast, helpers) {
   // Ensure all local directories exist
   for (const f of files) {
     const dir = path.dirname(f.local);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
   }
 
   // Track active transfers for UI

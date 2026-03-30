@@ -253,7 +253,7 @@ async function stepMove(job, store, broadcast, helpers) {
   for (const f of allFiles) {
     if (job.status === 'cancelled') return;
     const destDir = path.dirname(f.dest);
-    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true, mode: 0o777 });
 
     // Try rename first (instant on same filesystem / NAS volume)
     try {
