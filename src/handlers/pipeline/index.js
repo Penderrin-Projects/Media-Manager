@@ -159,7 +159,7 @@ async function processJob(job, store) {
           } catch (e) { console.log('[pipeline] Failed to set Long Seed:', e.message); }
         }
         const s = store.get('seedbox');
-        const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : '';
+        const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : (s.localDownloadPath || '');
         if (sftpBase && result.hash) {
           try {
             const tInfo = await _qbitRequest(store, `/api/v2/torrents/info?hashes=${result.hash}`);
@@ -192,7 +192,7 @@ async function processJob(job, store) {
         if (job.status === 'cancelled') return;
         if (!job.options.remotePath) {
           const s = store.get('seedbox');
-          const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : '';
+          const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : (s.localDownloadPath || '');
           if (!sftpBase) throw new Error('SFTP Remote Path not configured in Settings');
           job.options.remotePath = `${sftpBase}/${job.name}`;
         }
@@ -278,7 +278,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
     let remotePath = opts.remotePath || null;
     if (!remotePath && opts.name) {
       const s = store.get('seedbox');
-      const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : '';
+      const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : (s.localDownloadPath || '');
       if (sftpBase) {
         remotePath = `${sftpBase}/${opts.name}`;
         console.log(`[pipeline:start] Built remotePath: ${remotePath}`);
@@ -426,7 +426,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
 
       let remotePath = null;
       const s = store.get('seedbox');
-      const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : '';
+      const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : (s.localDownloadPath || '');
       if (sftpBase) remotePath = `${sftpBase}/${opts.name}`;
 
       const job = {

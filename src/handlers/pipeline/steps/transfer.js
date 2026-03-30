@@ -22,15 +22,66 @@ const MAX_CONCURRENT = 10;
  * @param {Function} broadcast - WebSocket broadcast function
  * @param {Object} helpers - (unused, reserved for future injection)
  */
+
+// Local file copy for when qBit is on the same machine (no SFTP needed)
+function collectLocalFiles(srcPath, destBase) {
+  const result = [];
+  function walk(dir, localDir) {
+    if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true, mode: 0o777 });
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      const src = path.join(dir, e.name);
+      const dst = path.join(localDir, e.name);
+      if (e.isDirectory()) {
+        walk(src, dst);
+      } else {
+        const stat = fs.statSync(src);
+        result.push({ src, dst, name: e.name, size: stat.size });
+      }
+    }
+  }
+  walk(srcPath, destBase);
+  return result;
+}
+
 async function stepTransfer(job, store, broadcast, helpers) {
   const s = store.get('seedbox'), sp = store.get('paths.staging');
   if (!sp) throw new Error('Staging not configured');
-  // Each job gets its own staging subfolder to avoid conflicts
   const jobStaging = path.join(sp, `job-${job.id}`);
   if (!fs.existsSync(jobStaging)) fs.mkdirSync(jobStaging, { recursive: true, mode: 0o777 });
   job.options.stagingPath = jobStaging;
 
-  // First connection: collect file list
+  // LOCAL MODE: no SFTP host = files are already on the NAS, just copy to staging
+  if (!s.sftpHost) {
+    const localPath = job.options.remotePath; // e.g. /torrents/TorrentName
+    if (!localPath || !fs.existsSync(localPath)) throw new Error('Local path not found: ' + (localPath || 'none'));
+    
+    const stat = fs.statSync(localPath);
+    let files;
+    if (stat.isDirectory()) {
+      files = collectLocalFiles(localPath, path.join(jobStaging, path.basename(localPath)));
+    } else {
+      files = [{ src: localPath, dst: path.join(jobStaging, path.basename(localPath)), name: path.basename(localPath), size: stat.size }];
+    }
+    
+    job.progress = 'Copying ' + files.length + ' file(s) locally...';
+    broadcast();
+    
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const dir = path.dirname(f.dst);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
+      fs.copyFileSync(f.src, f.dst);
+      job.progress = 'Copied ' + (i + 1) + '/' + files.length + ' files';
+      broadcast();
+    }
+    
+    job.progress = 'Copy complete — ' + files.length + ' file(s)';
+    console.log('[pipeline] Local copy complete: ' + files.length + ' files to ' + jobStaging);
+    return;
+  }
+
+  // SFTP MODE: transfer from remote seedbox
   const scout = new SftpClient();
   await scout.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword, readyTimeout: 20000, algorithms: { compress: ['none'] } });
   const rp = job.options.remotePath;
