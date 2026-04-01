@@ -138,13 +138,9 @@
     <!-- Library Paths -->
     <div class="card">
       <h3><span class="icon">📁</span> Library Paths</h3>
-      <div class="row"><label>Movies</label><input type="text" id="s-path-movies"></div>
-      <div class="row"><label>TV Shows</label><input type="text" id="s-path-tv"></div>
-      <div class="row"><label>Kids Movies</label><input type="text" id="s-path-kids-movies"></div>
-      <div class="row"><label>Asian Movies</label><input type="text" id="s-path-asian-movies"></div>
-      <div class="row"><label>Asian Shows</label><input type="text" id="s-path-asian-shows"></div>
-      <div class="row"><label>Anime Movies</label><input type="text" id="s-path-anime-movies"></div>
-      <div class="row"><label>Anime Shows</label><input type="text" id="s-path-anime-shows"></div>
+      <p class="help" style="margin-bottom:12px">Add your NAS library folders. Mark TV/anime series libraries as "Shows" so the renamer uses episode naming.</p>
+      <div id="library-paths-list"></div>
+      <button class="btn btn-ghost" onclick="addLibraryPath()" style="margin-top:10px;width:100%">+ Add Library</button>
     </div>
 
     <button class="btn btn-primary" onclick="saveSettings()" style="width:100%;padding:12px;font-size:14px">Save All Settings</button>
@@ -213,13 +209,7 @@ async function loadSettings() {
   document.getElementById('s-pcqbit-user').value = s.pcQbit?.username || '';
   document.getElementById('s-pcqbit-pass').value = s.pcQbit?.password || '';
   document.getElementById('s-tmdb-key').value = s.tmdb?.apiKey || '';
-  document.getElementById('s-path-movies').value = s.paths?.nasMovies || '';
-  document.getElementById('s-path-tv').value = s.paths?.nasTVShows || '';
-  document.getElementById('s-path-kids-movies').value = s.paths?.nasKidsMovies || '';
-  document.getElementById('s-path-asian-movies').value = s.paths?.nasAsianMovies || '';
-  document.getElementById('s-path-asian-shows').value = s.paths?.nasAsianShows || '';
-  document.getElementById('s-path-anime-movies').value = s.paths?.nasAnimeMovies || '';
-  document.getElementById('s-path-anime-shows').value = s.paths?.nasAnimeShows || '';
+  loadLibraryPaths(s.paths || {});
 }
 
 async function saveSettings() {
@@ -232,11 +222,7 @@ async function saveSettings() {
     url: v('s-pcqbit-url'), username: v('s-pcqbit-user'), password: v('s-pcqbit-pass'),
   }});
   await api('PUT', '/api/settings', { key: 'tmdb', value: { apiKey: v('s-tmdb-key') }});
-  await api('PUT', '/api/settings', { key: 'paths', value: {
-    nasMovies: v('s-path-movies'), nasTVShows: v('s-path-tv'), nasKidsMovies: v('s-path-kids-movies'),
-    nasAsianMovies: v('s-path-asian-movies'), nasAsianShows: v('s-path-asian-shows'),
-    nasAnimeMovies: v('s-path-anime-movies'), nasAnimeShows: v('s-path-anime-shows'),
-  }});
+  await api('PUT', '/api/settings', { key: 'paths', value: collectLibraryPaths() });
   setResult('r-save', 'Saved ✓', true);
   refreshStatus();
 }
@@ -260,6 +246,86 @@ async function testTmdb() {
   await saveSettings();
   const r = await api('GET', '/api/test/tmdb');
   setResult('r-tmdb', r.success ? 'OK' : r.error, r.success);
+}
+
+
+// Library Paths — dynamic name/path/isShows rows
+let libraryRows = [];
+
+function loadLibraryPaths(pathsConfig) {
+  libraryRows = [];
+  const libs = pathsConfig.libraries || [];
+  if (libs.length > 0) {
+    for (const lib of libs) {
+      libraryRows.push({ name: lib.name || '', path: lib.path || '', isShows: !!lib.isShows });
+    }
+  } else {
+    // Legacy: migrate flat keys into library rows
+    const legacy = [
+      { key: 'nasMovies', name: 'Movies', isShows: false },
+      { key: 'nasTVShows', name: 'TV Shows', isShows: true },
+      { key: 'nasKidsMovies', name: 'Kids Movies', isShows: false },
+      { key: 'nasAsianMovies', name: 'Asian Movies', isShows: false },
+      { key: 'nasAsianShows', name: 'Asian Shows', isShows: true },
+      { key: 'nasAnimeMovies', name: 'Anime Movies', isShows: false },
+      { key: 'nasAnimeShows', name: 'Anime Shows', isShows: true },
+    ];
+    for (const l of legacy) {
+      if (pathsConfig[l.key]) libraryRows.push({ name: l.name, path: pathsConfig[l.key], isShows: l.isShows });
+    }
+  }
+  if (libraryRows.length === 0) {
+    libraryRows.push({ name: 'Movies', path: '', isShows: false });
+    libraryRows.push({ name: 'TV Shows', path: '', isShows: true });
+  }
+  renderLibraryPaths();
+}
+
+function renderLibraryPaths() {
+  const el = document.getElementById('library-paths-list');
+  el.innerHTML = libraryRows.map((row, idx) => {
+    return `<div class="row" style="margin-bottom:8px;gap:6px">
+      <input type="text" data-idx="${idx}" class="lib-name-input" value="${esc(row.name)}" placeholder="Library name" style="width:130px;flex:none">
+      <input type="text" data-idx="${idx}" class="lib-path-input" value="${esc(row.path)}" placeholder="/media/..." style="flex:1">
+      <label style="min-width:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer" title="Check for TV/anime series (episode renaming)">
+        <input type="checkbox" data-idx="${idx}" class="lib-shows-chk" ${row.isShows ? 'checked' : ''} style="margin:0"> Shows
+      </label>
+      <button class="btn btn-ghost" onclick="removeLibraryPath(${idx})" style="padding:5px 8px;color:var(--danger)" title="Remove">✕</button>
+    </div>`;
+  }).join('');
+
+  // Wire up inputs
+  el.querySelectorAll('.lib-name-input').forEach(inp => {
+    inp.addEventListener('input', (e) => { libraryRows[parseInt(e.target.dataset.idx)].name = e.target.value; });
+  });
+  el.querySelectorAll('.lib-path-input').forEach(inp => {
+    inp.addEventListener('input', (e) => { libraryRows[parseInt(e.target.dataset.idx)].path = e.target.value; });
+  });
+  el.querySelectorAll('.lib-shows-chk').forEach(chk => {
+    chk.addEventListener('change', (e) => { libraryRows[parseInt(e.target.dataset.idx)].isShows = e.target.checked; });
+  });
+}
+
+function addLibraryPath() {
+  libraryRows.push({ name: '', path: '', isShows: false });
+  renderLibraryPaths();
+  // Focus the new name input
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.lib-name-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+}
+
+function removeLibraryPath(idx) {
+  libraryRows.splice(idx, 1);
+  renderLibraryPaths();
+}
+
+function collectLibraryPaths() {
+  const libraries = libraryRows
+    .filter(r => r.name.trim() && r.path.trim())
+    .map(r => ({ name: r.name.trim(), path: r.path.trim(), isShows: r.isShows }));
+  return { libraries };
 }
 
 // Pipeline
@@ -332,3 +398,4 @@ connectWs();
 </script>
 </body>
 </html>
+

@@ -31,7 +31,10 @@ const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 
 const DEFAULT_CONFIG = {
   seedbox: { qbitUrl: '', qbitUsername: '', qbitPassword: '', localDownloadPath: '' },
-  paths: { staging: '/staging', nasMovies: '', nasTVShows: '', nasKidsMovies: '', nasAsianMovies: '', nasAsianShows: '', nasAnimeMovies: '', nasAnimeShows: '' },
+  paths: { libraries: [
+    { name: 'Movies', path: '', isShows: false },
+    { name: 'TV Shows', path: '', isShows: true }
+  ] },
   tmdb: { apiKey: '' },
   pcQbit: { url: '', username: '', password: '' },
   server: { port: 9876, apiKey: '' }
@@ -180,6 +183,25 @@ app.put('/api/settings/bulk', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// Browse directories (for library path picker)
+app.get('/api/browse-dirs', requireAuth, (req, res) => {
+  const base = req.query.path || '/media';
+  try {
+    if (!fs.existsSync(base)) return res.json({ success: false, error: 'Path not found' });
+    const entries = fs.readdirSync(base, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => ({ name: d.name, path: path.join(base, d.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ success: true, path: base, dirs: entries });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+// Libraries list (convenience for desktop app / API consumers)
+app.get('/api/libraries', requireAuth, (req, res) => {
+  const libs = config.paths.libraries || [];
+  res.json({ success: true, libraries: libs });
+});
+
 // Diagnostics
 app.get('/api/diagnostics', requireAuth, (req, res) => {
   const diag = {
@@ -210,17 +232,26 @@ app.get('/api/diagnostics', requireAuth, (req, res) => {
     config: {
       qbitConfigured: !!config.seedbox.qbitUrl,
       tmdbConfigured: !!config.tmdb.apiKey,
-      stagingPath: config.paths.staging,
-      stagingExists: fs.existsSync(config.paths.staging || ''),
       authEnabled: !!config.server.apiKey,
     },
     paths: {},
   };
 
+  // Library paths
+  const libs = config.paths.libraries || [];
+  for (const lib of libs) {
+    if (lib && lib.path) {
+      const key = lib.name || 'unknown';
+      diag.paths[key] = { path: lib.path, exists: fs.existsSync(lib.path), writable: false };
+      try { fs.accessSync(lib.path, fs.constants.W_OK); diag.paths[key].writable = true; } catch (e) {}
+    }
+  }
+
+  // Legacy flat keys (backwards compat)
   const pathKeys = Object.keys(config.paths);
   for (const key of pathKeys) {
     const p = config.paths[key];
-    if (p && typeof p === 'string') {
+    if (p && typeof p === 'string' && key !== 'staging') {
       diag.paths[key] = { path: p, exists: fs.existsSync(p), writable: false };
       try { fs.accessSync(p, fs.constants.W_OK); diag.paths[key].writable = true; } catch (e) {}
     }
@@ -341,10 +372,10 @@ server.listen(PORT, '0.0.0.0', () => {
   log('info', 'server', `  WebSocket: ws://0.0.0.0:${PORT}/ws`);
   log('info', 'server', `  Auth:      ${config.server.apiKey ? 'Enabled' : 'Open (no API key set)'}`);
   log('info', 'server', `  Config:    ${CONFIG_PATH}`);
-  log('info', 'server', `  Staging:   ${config.paths.staging}`);
   log('info', 'server', `  Admin:     http://0.0.0.0:${PORT}/admin`);
   log('info', 'server', '  Mode:      Slim (manual grabs only)');
   log('info', 'server', '═══════════════════════════════════════════');
 });
 
 module.exports = { app, server, store, broadcast, log };
+

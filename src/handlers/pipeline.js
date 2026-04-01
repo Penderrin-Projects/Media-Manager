@@ -214,8 +214,11 @@ async function stepTorrent(job, store) {
     // Remap qBit's internal path to our container's mount
     const qbitPath = t.content_path || path.join(t.save_path || '', t.name);
     const localDownloadPath = store.get('seedbox.localDownloadPath') || '/torrents';
-    const qbitSavePath = (t.save_path || '/downloads').replace(/\/$/, '');
-    job.options.localPath = qbitPath.replace(qbitSavePath, localDownloadPath);
+    // Replace only the /downloads base — preserves subdirs like /downloads/Long Seed
+    const qbitBase = '/downloads';
+    job.options.localPath = qbitPath.startsWith(qbitBase)
+      ? localDownloadPath + qbitPath.slice(qbitBase.length)
+      : qbitPath;
     console.log(`[pipeline] Torrent complete. qBit: ${qbitPath} -> Local: ${job.options.localPath}`);
     // Pause unless Long Seed
     if (t.category !== 'Long Seed') {
@@ -256,11 +259,14 @@ async function stepDeliver(job, store) {
   const localPath = job.options.localPath;
   if (!localPath) throw new Error('No local download path — torrent may not have completed');
 
-  // Determine destination library
-  const pm = { movies: 'paths.nasMovies', tv: 'paths.nasTVShows', kidsMovies: 'paths.nasKidsMovies',
+  // Determine destination library (dynamic — uses paths.libraries array)
+  const libraries = store.get('paths.libraries') || [];
+  const lib = libraries.find(l => l.name === job.options.moveType);
+  // Fallback: check legacy flat keys for backwards compat
+  const legacyMap = { movies: 'paths.nasMovies', tv: 'paths.nasTVShows', kidsMovies: 'paths.nasKidsMovies',
     asianMovies: 'paths.nasAsianMovies', asianShows: 'paths.nasAsianShows',
     animeMovies: 'paths.nasAnimeMovies', animeShows: 'paths.nasAnimeShows' };
-  const destBase = store.get(pm[job.options.moveType]);
+  const destBase = lib ? lib.path : store.get(legacyMap[job.options.moveType]);
   if (!destBase) throw new Error(`NAS path for "${job.options.moveType}" not configured`);
 
   const VID = ['.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.ts', '.flv', '.webm'];
@@ -507,7 +513,7 @@ async function processJob(job, store) {
         job.name = result.name || job.name;
         if (job.options.longSeed && result.hash) {
           try {
-            await _qbitRequest(store, '/api/v2/torrents/createCategory', 'POST', 'category=Long%20Seed&savePath=');
+            await _qbitRequest(store, '/api/v2/torrents/createCategory', 'POST', 'category=Long%20Seed&savePath=%2Fdownloads%2FLong%20Seed');
             await _qbitRequest(store, '/api/v2/torrents/setCategory', 'POST', `hashes=${result.hash}&category=Long%20Seed`);
           } catch (e) {}
         }
@@ -655,3 +661,4 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
 }
 
 module.exports = { setupPipelineRoutes, getJobs: () => jobs.map(serializeJob) };
+
